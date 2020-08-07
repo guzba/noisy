@@ -1,7 +1,5 @@
-# You can use this nim template to jump start your nim library or project.
+# Noisy
 
-This template includes:
-* MIT licence
-* src directory and a private common.nim
-* test directory
-* GitHub Actions to run the tests on GitHub
+Noisy is a pure Nim implementation of Simplex (Perlin) noise.
+
+Noisy works well using Nim's relatively new `--gc:arc` and `--gc:orc` as well as the default garbage collector. This library also works using both `nim c` and `nim cpp`, in addition to `--cc:vcc` on Windows.
