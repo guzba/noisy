@@ -4,10 +4,10 @@ var s = 0.float32
 timeIt "noisy":
   let simplex = initSimplex(1988)
 
-  for x in 0 ..< 1000:
-    for y in 0 ..< 1000:
-      for z in 0 ..< 1000:
-        s = s + simplex.noise(x, y, z)
+  for x in 0 ..< 500:
+    for y in 0 ..< 500:
+      for z in 0 ..< 500:
+        s = s + simplex.value(x, y, z)
 
 if s > 0:
   echo "positive"

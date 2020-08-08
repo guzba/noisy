@@ -14,10 +14,18 @@ const
 
 type
   Simplex* = object
+    octaves: uint8
+    amplitude, frequency, lacunarity, gain: float32
     perm: array[256, uint8]
     permMod12: array[256, uint8]
 
 proc initSimplex*(seed: int): Simplex =
+  result.octaves = 1
+  result.amplitude = 1
+  result.frequency = 1
+  result.lacunarity = 2
+  result.gain = 0.5
+
   for i in 0 ..< result.perm.len:
     result.perm[i] = (i and 255).uint8
   var r = initRand(seed)
@@ -34,7 +42,7 @@ func dot(g: array[3, int8], x, y: float32): float32 {.inline.} =
 func dot(g: array[3, int8], x, y, z: float32): float32 {.inline.} =
     g[0].float32 * x + g[1].float32 * y + g[2].float32 * z
 
-proc noise*(simplex: Simplex, x, y: float32): float32 =
+proc noise(simplex: Simplex, x, y: float32): float32 =
   let
     s = (x + y) * F2
     i = fastFloor(x + s)
@@ -93,10 +101,7 @@ proc noise*(simplex: Simplex, x, y: float32): float32 =
 
   70.float32 * (n0 + n1 + n2)
 
-template noise*(simplex: Simplex, x, y: int): float32 =
-  simplex.noise(x.float32, y.float32)
-
-proc noise*(simplex: Simplex, x, y, z: float32): float32 =
+proc noise(simplex: Simplex, x, y, z: float32): float32 =
   let
     s = (x + y + z) * F3
     i = fastFloor(x + s)
@@ -214,13 +219,53 @@ proc noise*(simplex: Simplex, x, y, z: float32): float32 =
 
   32.float32 * (n[0] + n[1] + n[2] + n[3])
 
-template noise*(simplex: Simplex, x, y, z: int): float32 =
-  simplex.noise(x.float32, y.float32, z.float32)
+proc value*(simplex: Simplex, x, y: float32): float32 =
+  var
+    total, max: float32
+    amplitude = simplex.amplitude
+    frequency = simplex.frequency
+
+  for _ in 0 ..< simplex.octaves.int:
+    total += simplex.noise(x * frequency, y * frequency) * amplitude
+    max += amplitude
+    amplitude *= simplex.gain
+    frequency *= simplex.lacunarity
+
+  if max > 0:
+    total / max
+  else:
+    raise newException(ValueError, "Octaves and amplitude must be > 0")
+
+proc value*(simplex: Simplex, x, y, z: float32): float32 =
+  var
+    total, max: float32
+    amplitude = simplex.amplitude
+    frequency = simplex.frequency
+
+  for _ in 0 ..< simplex.octaves.int:
+    total += simplex.noise(
+      x * frequency, y * frequency, z * frequency
+    ) * amplitude
+    max += amplitude
+    amplitude *= simplex.gain
+    frequency *= simplex.lacunarity
+
+  if max > 0:
+    total / max
+  else:
+    raise newException(ValueError, "Octaves and amplitude must be > 0")
+
+template value*(simplex: Simplex, x, y: int): float32 =
+  simplex.value(x.float32, y.float32)
+
+template value*(simplex: Simplex, x, y, z: int): float32 =
+  simplex.value(x.float32, y.float32, z.float32)
 
 when isMainModule:
   import chroma, flippy, perlin
 
-  let s = initSimplex(1988)
+  var s = initSimplex(1988)
+  s.octaves = 1
   let n = newNoise(1988, 1, 1.0)
 
   let
@@ -233,7 +278,7 @@ when isMainModule:
   for x in 0 ..< 256:
     for y in 0 ..< 256:
       let
-        v0 = s.noise(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
+        v0 = s.value(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
         v1 = n.pureSimplex(x.float * 0.1, y.float * 0.1, 0.float)
         c0 = (((v0 + 1) / 2) * 255).uint8
         c1 = (v1 * 255).uint8
