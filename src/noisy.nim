@@ -19,6 +19,8 @@ type
     perm: array[256, uint8]
     permMod12: array[256, uint8]
 
+{.push checks: off.}
+
 proc initSimplex*(seed: int): Simplex =
   result.octaves = 1
   result.amplitude = 1
@@ -51,10 +53,7 @@ proc noise(simplex: Simplex, x, y: float32): float32 =
     x0 = x - (i.float32 - t)
     y0 = y - (j.float32 - t)
 
-  var
-    n0, n1, n2: float32
-    i1, j1: uint8
-
+  var i1, j1: uint8
   if x0 > y0:
     i1 = 1
     j1 = 0
@@ -74,6 +73,7 @@ proc noise(simplex: Simplex, x, y: float32): float32 =
     t0 = 0.5.float32 - x0 * x0 - y0 * y0
     t1 = 0.5.float32 - x1 * x1 - y1 * y1
     t2 = 0.5.float32 - x2 * x2 - y2 * y2
+    n0, n1, n2: float32
 
   if t0 < 0:
     n0 = 0
@@ -112,10 +112,7 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
     y0 = y - (j.float32 - t)
     z0 = z - (k.float32 - t)
 
-  var
-    n: array[4, float32]
-    i1, j1, k1, i2, j2, k2: uint8
-
+  var i1, j1, k1, i2, j2, k2: uint8
   if x0 >= y0:
     if y0 >= z0:
       i1 = 1
@@ -174,21 +171,19 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
     ii = (i and 255).uint8
     jj = (j and 255).uint8
     kk = (k and 255).uint8
-
-  var
     t0 = 0.6.float32 - x0 * x0 - y0 * y0 - z0 * z0
     t1 = 0.6.float32 - x1 * x1 - y1 * y1 - z1 * z1
     t2 = 0.6.float32 - x2 * x2 - y2 * y2 - z2 * z2
     t3 = 0.6.float32 - x3 * x3 - y3 * y3 - z3 * z3
 
+  var n: array[4, float32]
   if t0 < 0:
     n[0] = 0
   else:
     let gi0 = simplex.permMod12[
       ii + simplex.perm[jj + simplex.perm[kk]]
     ]
-    t0 = t0 * t0
-    n[0] = t0 * t0 * dot(grad3[gi0], x0, y0, z0)
+    n[0] = t0 * t0 * t0 * t0 * dot(grad3[gi0], x0, y0, z0)
 
   if t1 < 0:
     n[1] = 0
@@ -196,8 +191,7 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
     let gi1 = simplex.permMod12[
       ii + i1 + simplex.perm[jj + j1 + simplex.perm[kk + k1]]
     ]
-    t1 = t1 * t1
-    n[1] = t1 * t1 * dot(grad3[gi1], x1, y1, z1)
+    n[1] = t1 * t1 * t1 * t1 * dot(grad3[gi1], x1, y1, z1)
 
   if t2 < 0:
     n[2] = 0
@@ -205,8 +199,7 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
     let gi2 = simplex.permMod12[
       ii + i2 + simplex.perm[jj + j2 + simplex.perm[kk + k2]]
     ]
-    t2 = t2 * t2
-    n[2] = t2 * t2 * dot(grad3[gi2], x2, y2, z2)
+    n[2] = t2 * t2 * t2 * t2 * dot(grad3[gi2], x2, y2, z2)
 
   if t3 < 0:
     n[3] = 0
@@ -214,8 +207,7 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
     let gi3 = simplex.permMod12[
       ii + 1 + simplex.perm[jj + 1 + simplex.perm[kk + 1]]
     ]
-    t3 = t3 * t3
-    n[3] = t3 * t3 * dot(grad3[gi3], x3, y3, z3)
+    n[3] = t3 * t3 * t3 * t3 * dot(grad3[gi3], x3, y3, z3)
 
   32.float32 * (n[0] + n[1] + n[2] + n[3])
 
@@ -261,11 +253,12 @@ template value*(simplex: Simplex, x, y: int): float32 =
 template value*(simplex: Simplex, x, y, z: int): float32 =
   simplex.value(x.float32, y.float32, z.float32)
 
+{.pop.}
+
 when isMainModule:
   import chroma, flippy, perlin
 
   var s = initSimplex(1988)
-  s.octaves = 1
   let n = newNoise(1988, 1, 1.0)
 
   let
