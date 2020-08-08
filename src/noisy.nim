@@ -68,34 +68,29 @@ proc noise(simplex: Simplex, x, y: float32): float32 =
     y2 = y0 - 1.float32 + 2.float32 * G2
     ii = (i and 255).uint8
     jj = (j and 255).uint8
-
-  var
     t0 = 0.5.float32 - x0 * x0 - y0 * y0
     t1 = 0.5.float32 - x1 * x1 - y1 * y1
     t2 = 0.5.float32 - x2 * x2 - y2 * y2
-    n0, n1, n2: float32
 
+  var n0, n1, n2: float32
   if t0 < 0:
     n0 = 0
   else:
-    t0 = t0 * t0
-    n0 = t0 * t0 * dot(
+    n0 = t0 * t0 * t0 * t0 * dot(
       grad3[simplex.permMod12[ii + simplex.perm[jj]]], x0, y0
     )
 
   if t1 < 0:
     n1 = 0
   else:
-    t1 = t1 * t1
-    n1 = t1 * t1 * dot(
+    n1 = t1 * t1 * t1 * t1 * dot(
       grad3[simplex.permMod12[ii + i1 + simplex.perm[jj + j1]]], x1, y1
     )
 
   if t2 < 0:
     n2 = 0
   else:
-    t2 = t2 * t2
-    n2 = t2 * t2 * dot(
+    n2 = t2 * t2 * t2 * t2 * dot(
       grad3[simplex.permMod12[ii + 1 + simplex.perm[jj + 1]]], x2, y2
     )
 
