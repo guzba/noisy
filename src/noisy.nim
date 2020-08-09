@@ -14,8 +14,8 @@ const
 
 type
   Simplex* = object
-    octaves: uint8
-    amplitude, frequency, lacunarity, gain: float32
+    octaves*: uint8
+    amplitude*, frequency*, lacunarity*, gain*: float32
     perm: array[256, uint8]
     permMod12: array[256, uint8]
 
@@ -219,7 +219,7 @@ proc value*(simplex: Simplex, x, y: float32): float32 =
     frequency *= simplex.lacunarity
 
   if max > 0:
-    total / max
+    total / simplex.octaves.float32
   else:
     raise newException(ValueError, "Octaves and amplitude must be > 0")
 
