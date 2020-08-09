@@ -14,7 +14,7 @@ const
 
 type
   Simplex* = object
-    octaves*: uint8
+    octaves*: int
     amplitude*, frequency*, lacunarity*, gain*: float32
     perm: array[256, uint8]
     permMod12: array[256, uint8]
@@ -207,25 +207,25 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
   32.float32 * (n[0] + n[1] + n[2] + n[3])
 
 proc value*(simplex: Simplex, x, y: float32): float32 =
+  assert simplex.octaves > 0
+
   var
-    total, max: float32
+    total: float32
     amplitude = simplex.amplitude
     frequency = simplex.frequency
 
   for _ in 0 ..< simplex.octaves.int:
     total += simplex.noise(x * frequency, y * frequency) * amplitude
-    max += amplitude
     amplitude *= simplex.gain
     frequency *= simplex.lacunarity
 
-  if max > 0:
-    total / simplex.octaves.float32
-  else:
-    raise newException(ValueError, "Octaves and amplitude must be > 0")
+  total / simplex.octaves.float32
 
 proc value*(simplex: Simplex, x, y, z: float32): float32 =
+  assert simplex.octaves > 0
+
   var
-    total, max: float32
+    total: float32
     amplitude = simplex.amplitude
     frequency = simplex.frequency
 
@@ -233,14 +233,10 @@ proc value*(simplex: Simplex, x, y, z: float32): float32 =
     total += simplex.noise(
       x * frequency, y * frequency, z * frequency
     ) * amplitude
-    max += amplitude
     amplitude *= simplex.gain
     frequency *= simplex.lacunarity
 
-  if max > 0:
-    total / max
-  else:
-    raise newException(ValueError, "Octaves and amplitude must be > 0")
+  total / simplex.octaves.float32
 
 template value*(simplex: Simplex, x, y: int): float32 =
   simplex.value(x.float32, y.float32)
