@@ -1,4 +1,4 @@
-import noisy, perlin, fidget/opengl/perf
+import fidget/opengl/perf, noisy, perlin
 
 timeIt "noisy":
   let simplex = initSimplex(1988)

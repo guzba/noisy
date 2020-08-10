@@ -39,10 +39,10 @@ func fastFloor(f: float32): int =
   if f >= 0: f.int else: (f - 1).int
 
 func dot(g: array[3, int8], x, y: float32): float32 {.inline.} =
-    g[0].float32 * x + g[1].float32 * y
+  g[0].float32 * x + g[1].float32 * y
 
 func dot(g: array[3, int8], x, y, z: float32): float32 {.inline.} =
-    g[0].float32 * x + g[1].float32 * y + g[2].float32 * z
+  g[0].float32 * x + g[1].float32 * y + g[2].float32 * z
 
 proc noise(simplex: Simplex, x, y: float32): float32 =
   let
