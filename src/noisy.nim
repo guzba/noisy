@@ -16,8 +16,8 @@ type
   Simplex* = object
     octaves*: int
     amplitude*, frequency*, lacunarity*, gain*: float32
-    perm: array[256, uint8]
-    permMod12: array[256, uint8]
+    perm*: array[256, uint8]
+    permMod12*: array[256, uint8]
 
 {.push checks: off.}
 
@@ -29,7 +29,7 @@ proc initSimplex*(seed: int): Simplex =
   result.gain = 0.5
 
   for i in 0 ..< result.perm.len:
-    result.perm[i] = (i and 255).uint8
+    result.perm[i] = i.uint8
   var r = initRand(seed)
   shuffle(r, result.perm)
   for i in 0 ..< result.perm.len:
@@ -73,23 +73,17 @@ proc noise(simplex: Simplex, x, y: float32): float32 =
     t2 = 0.5.float32 - x2 * x2 - y2 * y2
 
   var n0, n1, n2: float32
-  if t0 < 0:
-    n0 = 0
-  else:
+  if t0 >= 0:
     n0 = t0 * t0 * t0 * t0 * dot(
       grad3[simplex.permMod12[ii + simplex.perm[jj]]], x0, y0
     )
 
-  if t1 < 0:
-    n1 = 0
-  else:
+  if t1 >= 0:
     n1 = t1 * t1 * t1 * t1 * dot(
       grad3[simplex.permMod12[ii + i1 + simplex.perm[jj + j1]]], x1, y1
     )
 
-  if t2 < 0:
-    n2 = 0
-  else:
+  if t2 >= 0:
     n2 = t2 * t2 * t2 * t2 * dot(
       grad3[simplex.permMod12[ii + 1 + simplex.perm[jj + 1]]], x2, y2
     )
@@ -172,33 +166,25 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
     t3 = 0.6.float32 - x3 * x3 - y3 * y3 - z3 * z3
 
   var n: array[4, float32]
-  if t0 < 0:
-    n[0] = 0
-  else:
+  if t0 >= 0:
     let gi0 = simplex.permMod12[
       ii + simplex.perm[jj + simplex.perm[kk]]
     ]
     n[0] = t0 * t0 * t0 * t0 * dot(grad3[gi0], x0, y0, z0)
 
-  if t1 < 0:
-    n[1] = 0
-  else:
+  if t1 >= 0:
     let gi1 = simplex.permMod12[
       ii + i1 + simplex.perm[jj + j1 + simplex.perm[kk + k1]]
     ]
     n[1] = t1 * t1 * t1 * t1 * dot(grad3[gi1], x1, y1, z1)
 
-  if t2 < 0:
-    n[2] = 0
-  else:
+  if t2 >= 0:
     let gi2 = simplex.permMod12[
       ii + i2 + simplex.perm[jj + j2 + simplex.perm[kk + k2]]
     ]
     n[2] = t2 * t2 * t2 * t2 * dot(grad3[gi2], x2, y2, z2)
 
-  if t3 < 0:
-    n[3] = 0
-  else:
+  if t3 >= 0:
     let gi3 = simplex.permMod12[
       ii + 1 + simplex.perm[jj + 1 + simplex.perm[kk + 1]]
     ]
