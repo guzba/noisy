@@ -233,29 +233,15 @@ template value*(simplex: Simplex, x, y, z: int): float32 =
 {.pop.}
 
 when isMainModule:
-  import chroma, flippy, perlin
+  import chroma, flippy
 
   var s = initSimplex(1988)
-  let n = newNoise(1988, 1, 1.0)
-
-  let
-    f0 = newImage(256, 256, 3)
-    f1 = newImage(256, 256, 3)
-  var
-    s0: seq[uint8]
-    s1: seq[uint8]
-
+  let img = newImage(256, 256, 3)
   for x in 0 ..< 256:
     for y in 0 ..< 256:
       let
         v0 = s.value(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
-        v1 = n.pureSimplex(x.float * 0.1, y.float * 0.1, 0.float)
         c0 = (((v0 + 1) / 2) * 255).uint8
-        c1 = (v1 * 255).uint8
-      s0.add(c0)
-      s1.add(c1)
-      f0.putRgba(x, y, rgba(c0, c0, c0, 255))
-      f1.putRgba(x, y, rgba(c1, c1, c1, 255))
+      img.putRgba(x, y, rgba(c0, c0, c0, 255))
 
-  f0.save("f0.png")
-  f1.save("f1.png")
+  img.save("noise.png")
