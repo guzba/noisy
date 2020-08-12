@@ -41,6 +41,7 @@ proc initSimplex(seed: int): Simplex
 
 ## **proc** value
 
+Generates the 2D noise value at (x, y) based on the Simplex parameters.
 
 ```nim
 proc value(simplex: Simplex; x, y: float32): float32
@@ -48,6 +49,7 @@ proc value(simplex: Simplex; x, y: float32): float32
 
 ## **proc** value
 
+Generates the 3D noise value at (x, y, z) based on the Simplex parameters.
 
 ```nim
 proc value(simplex: Simplex; x, y, z: float32): float32
