@@ -17,8 +17,6 @@ import noisy
 Simplex = object
  octaves*: int
  amplitude*, frequency*, lacunarity*, gain*: float32
- perm*: array[256, uint8]
- permMod12*: array[256, uint8]
 ```
 
 ## **proc** initSimplex
