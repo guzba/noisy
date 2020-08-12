@@ -193,6 +193,8 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
   32.float32 * (n[0] + n[1] + n[2] + n[3])
 
 proc value*(simplex: Simplex, x, y: float32): float32 =
+  ## Generates the 2D noise value at (x, y) based on the Simplex parameters.
+  ##
   doAssert simplex.octaves > 0, "Octaves must be > 0"
 
   var
@@ -208,6 +210,8 @@ proc value*(simplex: Simplex, x, y: float32): float32 =
   total / simplex.octaves.float32
 
 proc value*(simplex: Simplex, x, y, z: float32): float32 =
+  ## Generates the 3D noise value at (x, y, z) based on the Simplex parameters.
+
   doAssert simplex.octaves > 0, "Octaves must be > 0"
 
   var

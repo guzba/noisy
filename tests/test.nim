@@ -1,6 +1,6 @@
 import noisy
 
-let simplex = initSimplex(1988)
+let simplex = initSimplex(1988) # 1988 is the random seed, generate this however
 
 for y in 0 ..< 10:
     for x in 0 .. 10:
