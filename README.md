@@ -1,6 +1,6 @@
 # Noisy
 
-`nimble install supersnappy`
+`nimble install noisy`
 
 Noisy is a pure Nim implementation of Simplex (Perlin) noise.
 
