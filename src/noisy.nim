@@ -19,9 +19,11 @@ type
     perm*: array[256, uint8]
     permMod12*: array[256, uint8]
 
+  NoisyError* = object of ValueError
+
 {.push checks: off.}
 
-proc initSimplex*(seed: int): Simplex =
+func initSimplex*(seed: int): Simplex =
   result.octaves = 1
   result.amplitude = 1
   result.frequency = 1
@@ -44,7 +46,7 @@ func dot(g: array[3, int8], x, y: float32): float32 {.inline.} =
 func dot(g: array[3, int8], x, y, z: float32): float32 {.inline.} =
   g[0].float32 * x + g[1].float32 * y + g[2].float32 * z
 
-proc noise(simplex: Simplex, x, y: float32): float32 =
+func noise(simplex: Simplex, x, y: float32): float32 =
   let
     s = (x + y) * F2
     i = fastFloor(x + s)
@@ -90,7 +92,7 @@ proc noise(simplex: Simplex, x, y: float32): float32 =
 
   70.float32 * (n0 + n1 + n2)
 
-proc noise(simplex: Simplex, x, y, z: float32): float32 =
+func noise(simplex: Simplex, x, y, z: float32): float32 =
   let
     s = (x + y + z) * F3
     i = fastFloor(x + s)
@@ -192,10 +194,11 @@ proc noise(simplex: Simplex, x, y, z: float32): float32 =
 
   32.float32 * (n[0] + n[1] + n[2] + n[3])
 
-proc value*(simplex: Simplex, x, y: float32): float32 =
+func value*(simplex: Simplex, x, y: float32): float32 =
   ## Generates the 2D noise value at (x, y) based on the Simplex parameters.
-  ##
-  doAssert simplex.octaves > 0, "Octaves must be > 0"
+
+  if simplex.octaves == 0:
+    raise newException(NoisyError, "Octaves must be > 0")
 
   var
     total: float32
@@ -209,10 +212,11 @@ proc value*(simplex: Simplex, x, y: float32): float32 =
 
   total / simplex.octaves.float32
 
-proc value*(simplex: Simplex, x, y, z: float32): float32 =
+func value*(simplex: Simplex, x, y, z: float32): float32 =
   ## Generates the 3D noise value at (x, y, z) based on the Simplex parameters.
 
-  doAssert simplex.octaves > 0, "Octaves must be > 0"
+  if simplex.octaves == 0:
+    raise newException(NoisyError, "Octaves must be > 0")
 
   var
     total: float32
