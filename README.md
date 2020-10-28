@@ -8,7 +8,7 @@ Noisy works well using Nim's relatively new `--gc:arc` and `--gc:orc` as well as
 
 I have also verified that Noisy builds with `--experimental:strictFuncs` on Nim 1.4.0.
 
-# Example
+### Example
 
 ```nim
 import noisy
@@ -20,6 +20,17 @@ for y in 0 ..< 10:
         let value = simplex.value(x, y)
         echo value
 ```
+
+### Performance
+
+Benchmarks can be run comparing different noise implementations. My benchmarking shows this library performs well. Check the performance yourself by running [tests/benchmark.nim](https://github.com/guzba/noisy/blob/master/tests/benchmark.nim).
+
+`nim c --gc:arc -d:release -r .\tests\benchmark.nim` (300 x 300 x 300 cube of 3D simplex noise, lower time is better)
+
+Repo | Time
+--- | ---:
+**https://github.com/guzba/noisy** | 1.5017s
+https://github.com/Nycto/PerlinNim | 3.2295s
 
 # API: noisy
 
