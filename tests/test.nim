@@ -1,4 +1,4 @@
-import noisy
+import ../noisy
 
 let simplex = initSimplex(1988) # 1988 is the random seed, generate this however
 
