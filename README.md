@@ -8,7 +8,7 @@ Noisy works well using Nim's relatively new `--gc:arc` and `--gc:orc` as well as
 
 I have also verified that Noisy builds with `--experimental:strictFuncs` on Nim 1.4.0.
 
-### Example
+## Example
 
 ```nim
 import noisy
@@ -21,7 +21,7 @@ for y in 0 ..< 10:
         echo value
 ```
 
-### Performance
+## Performance
 
 Benchmarks can be run comparing different noise implementations. My benchmarking shows this library performs well. Check the performance yourself by running [tests/benchmark.nim](https://github.com/guzba/noisy/blob/master/tests/benchmark.nim).
 

@@ -37,7 +37,7 @@ func initSimplex*(seed: int): Simplex =
   for i in 0 ..< result.perm.len:
     result.permMod12[i] = result.perm[i] mod 12
 
-func fastFloor(f: float32): int =
+template fastFloor(f: float32): int =
   if f >= 0: f.int else: (f - 1).int
 
 func dot(g: array[3, int8], x, y: float32): float32 {.inline.} =
