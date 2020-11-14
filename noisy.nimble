@@ -1,5 +1,5 @@
 packageName = "noisy"
-version     = "0.2.0"
+version     = "0.2.1"
 author      = "Ryan Oldenburg"
 description = "Nim implementation of various noise types."
 license     = "MIT"
