@@ -21,7 +21,8 @@ type
 
   NoisyError* = object of ValueError
 
-{.push checks: off.}
+when defined(release):
+  {.push checks: off.}
 
 func initSimplex*(seed: int): Simplex =
   result.octaves = 1
@@ -238,7 +239,8 @@ template value*(simplex: Simplex, x, y: int): float32 =
 template value*(simplex: Simplex, x, y, z: int): float32 =
   simplex.value(x.float32, y.float32, z.float32)
 
-{.pop.}
+when defined(release):
+  {.pop.}
 
 when isMainModule:
   import chroma, flippy
