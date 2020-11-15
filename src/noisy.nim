@@ -191,14 +191,9 @@ func noise(simplex: Simplex, x, y: float32): float32 =
     t = (i + j) * G2
     x0 = x - (i - t)
     y0 = y - (j - t)
-
-  var i1, j1: uint8
-  if x0 > y0:
-    i1 = 1
-    j1 = 0
-  else:
-    i1 = 0
-    j1 = 1
+    gt = (x0 > y0).uint8
+    i1 = gt
+    j1 = (not gt) and 1
 
   let
     x1 = x0 - i1.float32 + G2
