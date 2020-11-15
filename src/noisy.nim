@@ -47,13 +47,13 @@ func dot(g: array[3, float32], x, y, z: float32): float32 {.inline.} =
 
 import noisy/simd/sse2
 
-func grid(simplex: Simplex, x, y, step: float32): array[4, float32] =
+func column4(simplex: Simplex, x, y, step: float32): m128 =
   let
     F2 = mm_set1_ps(F2)
     G2 = mm_set1_ps(G2)
     step = cast[m128]([0.float32, step, step * 2, step * 3])
-    x = mm_set1_ps(x.float32) + step
-    y = mm_set1_ps(y.float32)
+    x = mm_set1_ps(x.float32)
+    y = mm_set1_ps(y.float32) + step
     vec0 = mm_set1_ps(0)
     vec1 = mm_set1_ps(1)
     vec2 = mm_set1_ps(2)
@@ -181,7 +181,19 @@ func grid(simplex: Simplex, x, y, step: float32): array[4, float32] =
     n1 = blend(vec0, vec1, t1gt) * t1 * t1 * t1 * t1 * (gx1 * x1 + gy1 * y1)
     n2 = blend(vec0, vec1, t2gt) * t2 * t2 * t2 * t2 * (gx2 * x2 + gy2 * y2)
 
-  cast[array[4, float32]](mm_set1_ps(70.float32) * (n0 + n1 + n2))
+  mm_set1_ps(70.float32) * (n0 + n1 + n2)
+
+func row4(simplex: Simplex, x, y, step: float32): array[4, m128] =
+  for i in 0 ..< 4:
+    result[i] = simplex.column4(x + i.float32 * step, y, step)
+
+func grid4*(
+  simplex: Simplex, x, y, step: float32
+): array[4, array[4, float32]] =
+  ## Generates a 4x4 2D noise grid based on the Simplex parameters.
+  ## Starts at (x, y) and moves by step in the x and y directions.
+  ## Uses SSE2 SIMD insructions.
+  cast[array[4, array[4, float32]]](simplex.row4(x, y, step))
 
 func noise(simplex: Simplex, x, y: float32): float32 =
   let
@@ -378,23 +390,27 @@ when isMainModule:
 
   var s = initSimplex(1988)
 
-  timeIt "normal":
-    var c: int
-    var z: float32
-    for x in -10000000 ..< 10000000:
-      z += s.value(x, 0)
-      inc c
-    echo c, " ", z
+  # timeIt "normal":
+  #   var c: int
+  #   var z: float32
+  #   for x in -10000000 ..< 10000000:
+  #     z += s.value(x, 0)
+  #     inc c
+  #   echo c, " ", z
 
-  timeIt "simd":
-    var c: int
-    var z: float32
-    for x in countup(-10000000, 10000000-1, 4):
-      let tmp = s.grid(x.float32, 0, 1)
-      z = z + tmp[0] + tmp[1] + tmp[2] + tmp[3]
-      inc(c, 4)
-    echo c, " ", z
+  # timeIt "simd":
+  #   var c: int
+  #   var z: float32
+  #   for x in countup(-10000000, 10000000-1, 4):
+  #     let tmp = cast[array[4, float32]](s.row4(x.float32, 0, 1))
+  #     z = z + tmp[0] + tmp[1] + tmp[2] + tmp[3]
+  #     inc(c, 4)
+  #   echo c, " ", z
 
+  let g = s.grid4(0.float32, 0.float32, 1.float32)
+
+  echo g[2][3]
+  echo s.value(2, 3)
 
   # for x in countup(-9513, -9513+3, 4):
   # let x = -9513
