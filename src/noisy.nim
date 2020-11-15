@@ -7,9 +7,10 @@ const
   G3 = (1.0 / 6.0).float32
 
   grad3 = [
-    [1.int8, 1, 0], [-1.int8, 1, 0], [1.int8, -1, 0], [-1.int8, -1, 0],
-    [1.int8, 0, 1], [-1.int8, 0, 1], [1.int8, 0, -1], [-1.int8, 0, -1],
-    [0.int8, 1, 1], [0.int8, -1, 1], [0.int8, 1, -1], [0.int8, -1, -1]
+    [1.float32, 1, 0], [-1.float32, 1, 0], [1.float32, -1, 0],
+    [-1.float32, -1, 0], [1.float32, 0, 1], [-1.float32, 0, 1],
+    [1.float32, 0, -1], [-1.float32, 0, -1], [0.float32, 1, 1],
+    [0.float32, -1, 1], [0.float32, 1, -1], [0.float32, -1, -1]
   ]
 
 type
@@ -41,11 +42,97 @@ func initSimplex*(seed: int): Simplex =
 template fastFloor(f: float32): int =
   if f >= 0: f.int else: (f - 1).int
 
-func dot(g: array[3, int8], x, y: float32): float32 {.inline.} =
-  g[0].float32 * x + g[1].float32 * y
+func dot(g: array[3, float32], x, y: float32): float32 {.inline.} =
+  g[0] * x + g[1] * y
 
-func dot(g: array[3, int8], x, y, z: float32): float32 {.inline.} =
-  g[0].float32 * x + g[1].float32 * y + g[2].float32 * z
+func dot(g: array[3, float32], x, y, z: float32): float32 {.inline.} =
+  g[0] * x + g[1] * y + g[2] * z
+
+import noisy/simd
+
+func grid(simplex: Simplex, x, y: int): array[4, float32] =
+  let
+    F2v = mm_set1_ps(F2)
+    G2v = mm_set1_ps(G2)
+    x = mm_set1_ps(x.float32) + cast[m128]([0.float32, 1, 2, 3])
+    y = mm_set1_ps(y.float32)
+    v0 = mm_set1_ps(0.float32)
+    v1 = mm_set1_ps(1.float32)
+    v2 = mm_set1_ps(2.float32)
+    v05 = mm_set1_ps(0.5.float32)
+    v255 = mm_set1_epi32(255)
+
+  let
+    s = (x + y) * F2v
+    i = floor(x + s)
+    j = floor(y + s)
+    t = (i + j) * G2v
+    x0 = x - (i - t)
+    y0 = y - (j - t)
+    gt = mm_cmpgt_ps(x0, y0)
+    i1 = mm_blendv_ps(v0, v1, gt)
+    j1 = mm_blendv_ps(v1, v0, gt)
+    x1 = x0 - i1 + G2v
+    y1 = y0 - j1 + G2v
+    x2 = x0 - v1 + v2 * G2v
+    y2 = y0 - v1 + v2 * G2v
+    ii = mm_cvtps_epi32(i) and v255
+    jj = mm_cvtps_epi32(j) and v255
+    t0 = v05 - x0 * x0 - y0 * y0
+    t1 = v05 - x1 * x1 - y1 * y1
+    t2 = v05 - x2 * x2 - y2 * y2
+    t0gt = mm_cmpgt_ps(t0, v0)
+    t1gt = mm_cmpgt_ps(t1, v0)
+    t2gt = mm_cmpgt_ps(t2, v0)
+
+  let
+    i1i = cast[array[4, int32]](mm_cvtps_epi32(i1))
+    iii = cast[array[4, int32]](ii)
+    j1i = cast[array[4, int32]](mm_cvtps_epi32(j1))
+    jji = cast[array[4, int32]](jj)
+
+    gx0 = cast[m128]([
+      grad3[simplex.permMod12[iii[0].uint8 + simplex.perm[jji[0].uint8]]][0],
+      grad3[simplex.permMod12[iii[1].uint8 + simplex.perm[jji[1].uint8]]][0],
+      grad3[simplex.permMod12[iii[2].uint8 + simplex.perm[jji[2].uint8]]][0],
+      grad3[simplex.permMod12[iii[3].uint8 + simplex.perm[jji[3].uint8]]][0],
+    ])
+    gy0 = cast[m128]([
+      grad3[simplex.permMod12[iii[0].uint8 + simplex.perm[jji[0].uint8]]][1],
+      grad3[simplex.permMod12[iii[1].uint8 + simplex.perm[jji[1].uint8]]][1],
+      grad3[simplex.permMod12[iii[2].uint8 + simplex.perm[jji[2].uint8]]][1],
+      grad3[simplex.permMod12[iii[3].uint8 + simplex.perm[jji[3].uint8]]][1],
+    ])
+    gx1  = cast[m128]([
+      grad3[simplex.permMod12[iii[0].uint8 + i1i[0].uint8 + simplex.perm[jji[0].uint8 + j1i[0].uint8]]][0],
+      grad3[simplex.permMod12[iii[1].uint8 + i1i[1].uint8 + simplex.perm[jji[1].uint8 + j1i[1].uint8]]][0],
+      grad3[simplex.permMod12[iii[2].uint8 + i1i[2].uint8 + simplex.perm[jji[2].uint8 + j1i[2].uint8]]][0],
+      grad3[simplex.permMod12[iii[3].uint8 + i1i[3].uint8 + simplex.perm[jji[3].uint8 + j1i[3].uint8]]][0]
+    ])
+    gy1  = cast[m128]([
+      grad3[simplex.permMod12[iii[0].uint8 + i1i[0].uint8 + simplex.perm[jji[0].uint8 + j1i[0].uint8]]][1],
+      grad3[simplex.permMod12[iii[1].uint8 + i1i[1].uint8 + simplex.perm[jji[1].uint8 + j1i[1].uint8]]][1],
+      grad3[simplex.permMod12[iii[2].uint8 + i1i[2].uint8 + simplex.perm[jji[2].uint8 + j1i[2].uint8]]][1],
+      grad3[simplex.permMod12[iii[3].uint8 + i1i[3].uint8 + simplex.perm[jji[3].uint8 + j1i[3].uint8]]][1]
+    ])
+    gx2  = cast[m128]([
+      grad3[simplex.permMod12[iii[0].uint8 + 1.uint8 + simplex.perm[jji[0].uint8 + 1.uint8]]][0],
+      grad3[simplex.permMod12[iii[1].uint8 + 1.uint8 + simplex.perm[jji[1].uint8 + 1.uint8]]][0],
+      grad3[simplex.permMod12[iii[2].uint8 + 1.uint8 + simplex.perm[jji[2].uint8 + 1.uint8]]][0],
+      grad3[simplex.permMod12[iii[3].uint8 + 1.uint8 + simplex.perm[jji[3].uint8 + 1.uint8]]][0]
+    ])
+    gy2  = cast[m128]([
+      grad3[simplex.permMod12[iii[0].uint8 + 1.uint8 + simplex.perm[jji[0].uint8 + 1.uint8]]][1],
+      grad3[simplex.permMod12[iii[1].uint8 + 1.uint8 + simplex.perm[jji[1].uint8 + 1.uint8]]][1],
+      grad3[simplex.permMod12[iii[2].uint8 + 1.uint8 + simplex.perm[jji[2].uint8 + 1.uint8]]][1],
+      grad3[simplex.permMod12[iii[3].uint8 + 1.uint8 + simplex.perm[jji[3].uint8 + 1.uint8]]][1]
+    ])
+
+    n0 = mm_blendv_ps(v0, v1, t0gt) * t0 * t0 * t0 * t0 * (gx0 * x0 + gy0 * y0)
+    n1 = mm_blendv_ps(v0, v1, t1gt) * t1 * t1 * t1 * t1 * (gx1 * x1 + gy1 * y1)
+    n2 = mm_blendv_ps(v0, v1, t2gt) * t2 * t2 * t2 * t2 * (gx2 * x2 + gy2 * y2)
+
+  cast[array[4, float32]](mm_set1_ps(70.float32) * (n0 + n1 + n2))
 
 func noise(simplex: Simplex, x, y: float32): float32 =
   let
@@ -76,17 +163,17 @@ func noise(simplex: Simplex, x, y: float32): float32 =
     t2 = 0.5.float32 - x2 * x2 - y2 * y2
 
   var n0, n1, n2: float32
-  if t0 >= 0:
+  if t0 > 0:
     n0 = t0 * t0 * t0 * t0 * dot(
       grad3[simplex.permMod12[ii + simplex.perm[jj]]], x0, y0
     )
 
-  if t1 >= 0:
+  if t1 > 0:
     n1 = t1 * t1 * t1 * t1 * dot(
       grad3[simplex.permMod12[ii + i1 + simplex.perm[jj + j1]]], x1, y1
     )
 
-  if t2 >= 0:
+  if t2 > 0:
     n2 = t2 * t2 * t2 * t2 * dot(
       grad3[simplex.permMod12[ii + 1 + simplex.perm[jj + 1]]], x2, y2
     )
@@ -243,15 +330,38 @@ when defined(release):
   {.pop.}
 
 when isMainModule:
-  import chroma, flippy
+  import fidget/opengl/perf
 
   var s = initSimplex(1988)
-  let img = newImage(256, 256, 3)
-  for x in 0 ..< 256:
-    for y in 0 ..< 256:
-      let
-        v0 = s.value(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
-        c0 = (((v0 + 1) / 2) * 255).uint8
-      img.putRgba(x, y, rgba(c0, c0, c0, 255))
 
-  img.save("noise.png")
+  timeIt "normal":
+    var c: int
+    var z: float32
+    for x in 0 ..< 50000000:
+      # z +=
+      discard s.value(x, 0)
+      inc c
+    echo c, " ", z
+
+  timeIt "simd":
+    var c: int
+    var z: float32
+    for x in countup(0, 50000000-1, 4):
+      # let tmp =
+      discard s.grid(x, 0)
+      # z = z + tmp[0] + tmp[1] + tmp[2] + tmp[3]
+      inc(c, 4)
+    echo c, " ", z
+
+  # import chroma, flippy
+
+  # var s = initSimplex(1988)
+  # let img = newImage(256, 256, 3)
+  # for x in 0 ..< 256:
+  #   for y in 0 ..< 256:
+  #     let
+  #       v0 = s.value(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
+  #       c0 = (((v0 + 1) / 2) * 255).uint8
+  #     img.putRgba(x, y, rgba(c0, c0, c0, 255))
+
+  # img.save("noise.png")
