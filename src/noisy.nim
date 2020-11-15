@@ -39,52 +39,51 @@ func initSimplex*(seed: int): Simplex =
   for i in 0 ..< result.perm.len:
     result.permMod12[i] = result.perm[i] mod 12
 
-template fastFloor(f: float32): int =
-  if f >= 0: f.int else: (f - 1).int
-
 func dot(g: array[3, float32], x, y: float32): float32 {.inline.} =
   g[0] * x + g[1] * y
 
 func dot(g: array[3, float32], x, y, z: float32): float32 {.inline.} =
   g[0] * x + g[1] * y + g[2] * z
 
-import noisy/simd
+import noisy/simd/sse2
 
-func grid(simplex: Simplex, x, y: int): array[4, float32] =
+func grid(simplex: Simplex, x, y, step: float32): array[4, float32] =
   let
-    F2v = mm_set1_ps(F2)
-    G2v = mm_set1_ps(G2)
-    x = mm_set1_ps(x.float32) + cast[m128]([0.float32, 1, 2, 3])
+    F2 = mm_set1_ps(F2)
+    G2 = mm_set1_ps(G2)
+    step = cast[m128]([0.float32, step, step * 2, step * 3])
+    x = mm_set1_ps(x.float32) + step
     y = mm_set1_ps(y.float32)
-    v0 = mm_set1_ps(0.float32)
-    v1 = mm_set1_ps(1.float32)
-    v2 = mm_set1_ps(2.float32)
-    v05 = mm_set1_ps(0.5.float32)
-    v255 = mm_set1_epi32(255)
+    vec0 = mm_set1_ps(0)
+    vec1 = mm_set1_ps(1)
+    vec2 = mm_set1_ps(2)
+    v0dot5 = mm_set1_ps(0.5)
+    vec255 = mm_set1_epi32(255)
 
   let
-    s = (x + y) * F2v
+    s = (x + y) * F2
     i = floor(x + s)
     j = floor(y + s)
-    t = (i + j) * G2v
+    t = (i + j) * G2
     x0 = x - (i - t)
     y0 = y - (j - t)
-    gt = mm_cmpgt_ps(x0, y0)
-    i1 = mm_blendv_ps(v0, v1, gt)
-    j1 = mm_blendv_ps(v1, v0, gt)
-    x1 = x0 - i1 + G2v
-    y1 = y0 - j1 + G2v
-    x2 = x0 - v1 + v2 * G2v
-    y2 = y0 - v1 + v2 * G2v
-    ii = mm_cvtps_epi32(i) and v255
-    jj = mm_cvtps_epi32(j) and v255
-    t0 = v05 - x0 * x0 - y0 * y0
-    t1 = v05 - x1 * x1 - y1 * y1
-    t2 = v05 - x2 * x2 - y2 * y2
-    t0gt = mm_cmpgt_ps(t0, v0)
-    t1gt = mm_cmpgt_ps(t1, v0)
-    t2gt = mm_cmpgt_ps(t2, v0)
+    gt = x0 > y0
+    i1 = blend(vec0, vec1, gt)
+    j1 = blend(vec1, vec0, gt)
+    x1 = x0 - i1 + G2
+    y1 = y0 - j1 + G2
+    x2 = x0 - vec1 + vec2 * G2
+    y2 = y0 - vec1 + vec2 * G2
+    ii = mm_cvtps_epi32(i) and vec255
+    jj = mm_cvtps_epi32(j) and vec255
+    t0 = v0dot5 - x0 * x0 - y0 * y0
+    t1 = v0dot5 - x1 * x1 - y1 * y1
+    t2 = v0dot5 - x2 * x2 - y2 * y2
+    t0gt = t0 > vec0
+    t1gt = t1 > vec0
+    t2gt = t2 > vec0
 
+  # Set up the gradient vectors
   let
     i1i = cast[array[4, int32]](mm_cvtps_epi32(i1))
     iii = cast[array[4, int32]](ii)
@@ -104,44 +103,94 @@ func grid(simplex: Simplex, x, y: int): array[4, float32] =
       grad3[simplex.permMod12[iii[3].uint8 + simplex.perm[jji[3].uint8]]][1],
     ])
     gx1  = cast[m128]([
-      grad3[simplex.permMod12[iii[0].uint8 + i1i[0].uint8 + simplex.perm[jji[0].uint8 + j1i[0].uint8]]][0],
-      grad3[simplex.permMod12[iii[1].uint8 + i1i[1].uint8 + simplex.perm[jji[1].uint8 + j1i[1].uint8]]][0],
-      grad3[simplex.permMod12[iii[2].uint8 + i1i[2].uint8 + simplex.perm[jji[2].uint8 + j1i[2].uint8]]][0],
-      grad3[simplex.permMod12[iii[3].uint8 + i1i[3].uint8 + simplex.perm[jji[3].uint8 + j1i[3].uint8]]][0]
+      grad3[
+        simplex.permMod12[iii[0].uint8 + i1i[0].uint8 +
+        simplex.perm[jji[0].uint8 + j1i[0].uint8]]
+      ][0],
+      grad3[
+        simplex.permMod12[iii[1].uint8 + i1i[1].uint8 +
+        simplex.perm[jji[1].uint8 + j1i[1].uint8]]
+      ][0],
+      grad3[
+        simplex.permMod12[iii[2].uint8 + i1i[2].uint8 +
+        simplex.perm[jji[2].uint8 + j1i[2].uint8]]
+      ][0],
+      grad3[
+        simplex.permMod12[iii[3].uint8 + i1i[3].uint8 +
+        simplex.perm[jji[3].uint8 + j1i[3].uint8]]
+      ][0]
     ])
     gy1  = cast[m128]([
-      grad3[simplex.permMod12[iii[0].uint8 + i1i[0].uint8 + simplex.perm[jji[0].uint8 + j1i[0].uint8]]][1],
-      grad3[simplex.permMod12[iii[1].uint8 + i1i[1].uint8 + simplex.perm[jji[1].uint8 + j1i[1].uint8]]][1],
-      grad3[simplex.permMod12[iii[2].uint8 + i1i[2].uint8 + simplex.perm[jji[2].uint8 + j1i[2].uint8]]][1],
-      grad3[simplex.permMod12[iii[3].uint8 + i1i[3].uint8 + simplex.perm[jji[3].uint8 + j1i[3].uint8]]][1]
+      grad3[
+        simplex.permMod12[iii[0].uint8 + i1i[0].uint8 +
+        simplex.perm[jji[0].uint8 + j1i[0].uint8]]
+      ][1],
+      grad3[
+        simplex.permMod12[iii[1].uint8 + i1i[1].uint8 +
+        simplex.perm[jji[1].uint8 + j1i[1].uint8]]
+      ][1],
+      grad3[
+        simplex.permMod12[iii[2].uint8 + i1i[2].uint8 +
+        simplex.perm[jji[2].uint8 + j1i[2].uint8]]
+      ][1],
+      grad3[
+        simplex.permMod12[iii[3].uint8 + i1i[3].uint8 +
+        simplex.perm[jji[3].uint8 + j1i[3].uint8]]
+      ][1]
     ])
     gx2  = cast[m128]([
-      grad3[simplex.permMod12[iii[0].uint8 + 1.uint8 + simplex.perm[jji[0].uint8 + 1.uint8]]][0],
-      grad3[simplex.permMod12[iii[1].uint8 + 1.uint8 + simplex.perm[jji[1].uint8 + 1.uint8]]][0],
-      grad3[simplex.permMod12[iii[2].uint8 + 1.uint8 + simplex.perm[jji[2].uint8 + 1.uint8]]][0],
-      grad3[simplex.permMod12[iii[3].uint8 + 1.uint8 + simplex.perm[jji[3].uint8 + 1.uint8]]][0]
+      grad3[
+        simplex.permMod12[iii[0].uint8 + 1.uint8 +
+        simplex.perm[jji[0].uint8 + 1.uint8]]
+      ][0],
+      grad3[
+        simplex.permMod12[iii[1].uint8 + 1.uint8 +
+        simplex.perm[jji[1].uint8 + 1.uint8]]
+      ][0],
+      grad3[
+        simplex.permMod12[iii[2].uint8 + 1.uint8 +
+        simplex.perm[jji[2].uint8 + 1.uint8]]
+      ][0],
+      grad3[
+        simplex.permMod12[iii[3].uint8 + 1.uint8 +
+        simplex.perm[jji[3].uint8 + 1.uint8]]
+      ][0]
     ])
     gy2  = cast[m128]([
-      grad3[simplex.permMod12[iii[0].uint8 + 1.uint8 + simplex.perm[jji[0].uint8 + 1.uint8]]][1],
-      grad3[simplex.permMod12[iii[1].uint8 + 1.uint8 + simplex.perm[jji[1].uint8 + 1.uint8]]][1],
-      grad3[simplex.permMod12[iii[2].uint8 + 1.uint8 + simplex.perm[jji[2].uint8 + 1.uint8]]][1],
-      grad3[simplex.permMod12[iii[3].uint8 + 1.uint8 + simplex.perm[jji[3].uint8 + 1.uint8]]][1]
+      grad3[
+        simplex.permMod12[iii[0].uint8 + 1.uint8 +
+        simplex.perm[jji[0].uint8 + 1.uint8]]
+      ][1],
+      grad3[
+        simplex.permMod12[iii[1].uint8 + 1.uint8 +
+        simplex.perm[jji[1].uint8 + 1.uint8]]
+      ][1],
+      grad3[
+        simplex.permMod12[iii[2].uint8 + 1.uint8 +
+        simplex.perm[jji[2].uint8 + 1.uint8]]
+      ][1],
+      grad3[
+        simplex.permMod12[iii[3].uint8 + 1.uint8 +
+        simplex.perm[jji[3].uint8 + 1.uint8]]
+      ][1]
     ])
 
-    n0 = mm_blendv_ps(v0, v1, t0gt) * t0 * t0 * t0 * t0 * (gx0 * x0 + gy0 * y0)
-    n1 = mm_blendv_ps(v0, v1, t1gt) * t1 * t1 * t1 * t1 * (gx1 * x1 + gy1 * y1)
-    n2 = mm_blendv_ps(v0, v1, t2gt) * t2 * t2 * t2 * t2 * (gx2 * x2 + gy2 * y2)
+  let
+    # n0 = mm_blendv_ps(v0, vec1, t0gt) *
+    n0 = blend(vec0, vec1, t0gt) * t0 * t0 * t0 * t0 * (gx0 * x0 + gy0 * y0)
+    n1 = blend(vec0, vec1, t1gt) * t1 * t1 * t1 * t1 * (gx1 * x1 + gy1 * y1)
+    n2 = blend(vec0, vec1, t2gt) * t2 * t2 * t2 * t2 * (gx2 * x2 + gy2 * y2)
 
   cast[array[4, float32]](mm_set1_ps(70.float32) * (n0 + n1 + n2))
 
 func noise(simplex: Simplex, x, y: float32): float32 =
   let
     s = (x + y) * F2
-    i = fastFloor(x + s)
-    j = fastFloor(y + s)
-    t = (i + j).float32 * G2
-    x0 = x - (i.float32 - t)
-    y0 = y - (j.float32 - t)
+    i = floor(x + s)
+    j = floor(y + s)
+    t = (i + j) * G2
+    x0 = x - (i - t)
+    y0 = y - (j - t)
 
   var i1, j1: uint8
   if x0 > y0:
@@ -156,8 +205,8 @@ func noise(simplex: Simplex, x, y: float32): float32 =
     y1 = y0 - j1.float32 + G2
     x2 = x0 - 1.float32 + 2.float32 * G2
     y2 = y0 - 1.float32 + 2.float32 * G2
-    ii = (i and 255).uint8
-    jj = (j and 255).uint8
+    ii = (i.int32 and 255).uint8
+    jj = (j.int32 and 255).uint8
     t0 = 0.5.float32 - x0 * x0 - y0 * y0
     t1 = 0.5.float32 - x1 * x1 - y1 * y1
     t2 = 0.5.float32 - x2 * x2 - y2 * y2
@@ -183,13 +232,13 @@ func noise(simplex: Simplex, x, y: float32): float32 =
 func noise(simplex: Simplex, x, y, z: float32): float32 =
   let
     s = (x + y + z) * F3
-    i = fastFloor(x + s)
-    j = fastFloor(y + s)
-    k = fastFloor(z + s)
-    t = (i + j + k).float32 * G3
-    x0 = x - (i.float32 - t)
-    y0 = y - (j.float32 - t)
-    z0 = z - (k.float32 - t)
+    i = floor(x + s)
+    j = floor(y + s)
+    k = floor(z + s)
+    t = (i + j + k) * G3
+    x0 = x - (i - t)
+    y0 = y - (j - t)
+    z0 = z - (k - t)
 
   var i1, j1, k1, i2, j2, k2: uint8
   if x0 >= y0:
@@ -247,9 +296,9 @@ func noise(simplex: Simplex, x, y, z: float32): float32 =
     x3 = x0 - 1.float32 + 3.float32 * G3
     y3 = y0 - 1.float32 + 3.float32 * G3
     z3 = z0 - 1.float32 + 3.float32 * G3
-    ii = (i and 255).uint8
-    jj = (j and 255).uint8
-    kk = (k and 255).uint8
+    ii = (i.int32 and 255).uint8
+    jj = (j.int32 and 255).uint8
+    kk = (k.int32 and 255).uint8
     t0 = 0.6.float32 - x0 * x0 - y0 * y0 - z0 * z0
     t1 = 0.6.float32 - x1 * x1 - y1 * y1 - z1 * z1
     t2 = 0.6.float32 - x2 * x2 - y2 * y2 - z2 * z2
@@ -337,21 +386,29 @@ when isMainModule:
   timeIt "normal":
     var c: int
     var z: float32
-    for x in 0 ..< 50000000:
-      # z +=
-      discard s.value(x, 0)
+    for x in -10000000 ..< 10000000:
+      z += s.value(x, 0)
       inc c
     echo c, " ", z
 
   timeIt "simd":
     var c: int
     var z: float32
-    for x in countup(0, 50000000-1, 4):
-      # let tmp =
-      discard s.grid(x, 0)
-      # z = z + tmp[0] + tmp[1] + tmp[2] + tmp[3]
+    for x in countup(-10000000, 10000000-1, 4):
+      let tmp = s.grid(x.float32, 0, 1)
+      z = z + tmp[0] + tmp[1] + tmp[2] + tmp[3]
       inc(c, 4)
     echo c, " ", z
+
+
+  # for x in countup(-9513, -9513+3, 4):
+  # let x = -9513
+  # let a = s.grid(x, 0)
+  # for i in 0 ..< 4:
+  #   # debugEcho "x: ", x
+  #   let sv = s.value(x + i, 0)
+  #   if a[i] != sv:
+  #     debugEcho "not equal @", x + i, " ", a[i], " ", sv
 
   # import chroma, flippy
 
