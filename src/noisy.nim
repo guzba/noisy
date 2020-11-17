@@ -58,7 +58,7 @@ func noise(simplex: Simplex, x, y: float32): float32 =
     y0 = y - (j - t)
     gt = (x0 > y0).uint8
     i1 = gt
-    j1 = not gt
+    j1 = (not gt) and 1
     x1 = x0 - i1.float32 + G2
     y1 = y0 - j1.float32 + G2
     x2 = x0 - 1.float32 + 2.float32 * G2
@@ -102,10 +102,10 @@ func noise(simplex: Simplex, x, y, z: float32): float32 =
     x0gez0 = (x0 >= z0).uint8
     i1 = x0gey0 and x0gez0
     j1 = (not x0gey0) and y0gez0
-    k1 = not y0gez0
+    k1 = (not y0gez0) and 1
     i2 = x0gey0 or (x0gez0 and y0gez0)
-    j2 = (x0gey0 and y0gez0) or (not x0gey0)
-    k2  = (x0gey0 and (not y0gez0)) or ((not x0gey0) and (not x0gez0))
+    j2 = (x0gey0 and y0gez0) or ((not x0gey0) and 1)
+    k2  = (x0gey0 and ((not y0gez0) and 1)) or (((not x0gey0) and 1) and ((not x0gez0) and 1))
     x1 = x0 - i1.float32 + G3
     y1 = y0 - j1.float32 + G3
     z1 = z0 - k1.float32 + G3
@@ -204,7 +204,7 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
     vec0 = mm_set1_ps(0)
     vec1 = mm_set1_ps(1)
     vec2 = mm_set1_ps(2)
-    v0dot5 = mm_set1_ps(0.5)
+    vec0dot5 = mm_set1_ps(0.5)
     vec255 = mm_set1_epi32(255)
 
   let
@@ -221,11 +221,11 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
     y1 = y0 - j1 + G2
     x2 = x0 - vec1 + vec2 * G2
     y2 = y0 - vec1 + vec2 * G2
-    ii = mm_cvtps_epi32(i) and vec255
-    jj = mm_cvtps_epi32(j) and vec255
-    t0 = v0dot5 - x0 * x0 - y0 * y0
-    t1 = v0dot5 - x1 * x1 - y1 * y1
-    t2 = v0dot5 - x2 * x2 - y2 * y2
+    ii = mm_and_si128(mm_cvtps_epi32(i), vec255)
+    jj = mm_and_si128(mm_cvtps_epi32(j), vec255)
+    t0 = vec0dot5 - x0 * x0 - y0 * y0
+    t1 = vec0dot5 - x1 * x1 - y1 * y1
+    t2 = vec0dot5 - x2 * x2 - y2 * y2
     t0gt = t0 > vec0
     t1gt = t1 > vec0
     t2gt = t2 > vec0
@@ -355,9 +355,10 @@ func grid4*(simplex: Simplex, x, y: float32): array[4, array[4, float32]] =
     amplitude = amplitude * gain
     frequency *= simplex.lacunarity
 
-  let octaves = mm_set1_ps(simplex.octaves.float32)
-  for i in 0 ..< 4:
-    totals[i] = totals[i] / octaves
+  if simplex.octaves > 1:
+    let octaves = mm_set1_ps(simplex.octaves.float32)
+    for i in 0 ..< 4:
+      totals[i] = totals[i] / octaves
 
   cast[array[4, array[4, float32]]](totals)
 
@@ -369,6 +370,12 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
     x = mm_set1_ps(x)
     y = mm_set1_ps(y)
     z = mm_set1_ps(z) + steps
+    vec0 = mm_set1_ps(0)
+    vec1 = mm_set1_ps(1)
+    vec2 = mm_set1_ps(2)
+    vec3 = mm_set1_ps(3)
+    vec0dot6 = mm_set1_ps(0.6)
+    vec255 = mm_set1_epi32(255)
 
   let
     s = (x + y + z) * F3
@@ -379,19 +386,348 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
     x0 = x - (i - t)
     y0 = y - (j - t)
     z0 = z - (k - t)
+    x0gey0 = x0 >= y0
+    y0gez0 = y0 >= z0
+    x0gez0 = x0 >= z0
+    i1 = blend(vec0, vec1, x0gey0 and x0gez0)
+    j1 = blend(vec0, vec1, mm_andnot_ps(x0gey0, y0gez0))
+    k1 = blend(vec0, vec1, mm_andnot_ps(y0gez0, vec1))
+    i2 = blend(vec0, vec1, x0gey0 or (x0gez0 and y0gez0))
+    j2 = blend(vec0, vec1, (x0gey0 and y0gez0) or mm_andnot_ps(x0gey0, vec1))
+    k2 = blend(
+      vec0,
+      vec1,
+      (x0gey0 and mm_andnot_ps(y0gez0, vec1)) or
+        (mm_andnot_ps(x0gey0, vec1) and mm_andnot_ps(x0gez0, vec1))
+    )
+    x1 = x0 - i1 + G3
+    y1 = y0 - j1 + G3
+    z1 = z0 - k1 + G3
+    x2 = x0 - i2 + vec2 * G3
+    y2 = y0 - j2 + vec2 * G3
+    z2 = z0 - k2 + vec2 * G3
+    x3 = x0 - vec1 + vec3 * G3
+    y3 = y0 - vec1 + vec3 * G3
+    z3 = z0 - vec1 + vec3 * G3
+    ii = mm_and_si128(mm_cvtps_epi32(i), vec255)
+    jj = mm_and_si128(mm_cvtps_epi32(j), vec255)
+    kk = mm_and_si128(mm_cvtps_epi32(k), vec255)
+    t0 = vec0dot6 - x0 * x0 - y0 * y0 - z0 * z0
+    t1 = vec0dot6 - x1 * x1 - y1 * y1 - z1 * z1
+    t2 = vec0dot6 - x2 * x2 - y2 * y2 - z2 * z2
+    t3 = vec0dot6 - x3 * x3 - y3 * y3 - z3 * z3
+    t0gt = t0 > vec0
+    t1gt = t1 > vec0
+    t2gt = t2 > vec0
+    t3gt = t3 > vec0
+
+  # Set up the gradient vectors
+  let
+    i1i = cast[array[4, int32]](mm_cvtps_epi32(i1))
+    i2i = cast[array[4, int32]](mm_cvtps_epi32(i2))
+    iii = cast[array[4, int32]](ii)
+    j1i = cast[array[4, int32]](mm_cvtps_epi32(j1))
+    j2i = cast[array[4, int32]](mm_cvtps_epi32(j2))
+    jji = cast[array[4, int32]](jj)
+    k1i = cast[array[4, int32]](mm_cvtps_epi32(k1))
+    k2i = cast[array[4, int32]](mm_cvtps_epi32(k2))
+    kki = cast[array[4, int32]](kk)
+
+    gx0 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + simplex.perm[jji[0].uint8 + simplex.perm[kki[0]]]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + simplex.perm[jji[1].uint8 + simplex.perm[kki[1]]]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + simplex.perm[jji[2].uint8 + simplex.perm[kki[2]]]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + simplex.perm[jji[3].uint8 + simplex.perm[kki[3]]]
+      ]][0]
+    ])
+    gy0 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + simplex.perm[jji[0].uint8 + simplex.perm[kki[0]]]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + simplex.perm[jji[1].uint8 + simplex.perm[kki[1]]]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + simplex.perm[jji[2].uint8 + simplex.perm[kki[2]]]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + simplex.perm[jji[3].uint8 + simplex.perm[kki[3]]]
+      ]][1]
+    ])
+    gz0 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + simplex.perm[jji[0].uint8 + simplex.perm[kki[0]]]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + simplex.perm[jji[1].uint8 + simplex.perm[kki[1]]]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + simplex.perm[jji[2].uint8 + simplex.perm[kki[2]]]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + simplex.perm[jji[3].uint8 + simplex.perm[kki[3]]]
+      ]][2]
+    ])
+    gx1 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + i1i[0].uint8 + simplex.perm[
+          jji[0].uint8 + j1i[0].uint8 + simplex.perm[kki[0].uint8 + k1i[0].uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + i1i[1].uint8 + simplex.perm[
+          jji[1].uint8 + j1i[1].uint8 + simplex.perm[kki[1].uint8 + k1i[1].uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + i1i[2].uint8 + simplex.perm[
+          jji[2].uint8 + j1i[2].uint8 + simplex.perm[kki[2].uint8 + k1i[2].uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + i1i[3].uint8 + simplex.perm[
+          jji[3].uint8 + j1i[3].uint8 + simplex.perm[kki[3].uint8 + k1i[3].uint8]
+        ]
+      ]][0]
+    ])
+    gy1 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + i1i[0].uint8 + simplex.perm[
+          jji[0].uint8 + j1i[0].uint8 + simplex.perm[kki[0].uint8 + k1i[0].uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + i1i[1].uint8 + simplex.perm[
+          jji[1].uint8 + j1i[1].uint8 + simplex.perm[kki[1].uint8 + k1i[1].uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + i1i[2].uint8 + simplex.perm[
+          jji[2].uint8 + j1i[2].uint8 + simplex.perm[kki[2].uint8 + k1i[2].uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + i1i[3].uint8 + simplex.perm[
+          jji[3].uint8 + j1i[3].uint8 + simplex.perm[kki[3].uint8 + k1i[3].uint8]
+        ]
+      ]][1]
+    ])
+    gz1 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + i1i[0].uint8 + simplex.perm[
+          jji[0].uint8 + j1i[0].uint8 + simplex.perm[kki[0].uint8 + k1i[0].uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + i1i[1].uint8 + simplex.perm[
+          jji[1].uint8 + j1i[1].uint8 + simplex.perm[kki[1].uint8 + k1i[1].uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + i1i[2].uint8 + simplex.perm[
+          jji[2].uint8 + j1i[2].uint8 + simplex.perm[kki[2].uint8 + k1i[2].uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + i1i[3].uint8 + simplex.perm[
+          jji[3].uint8 + j1i[3].uint8 + simplex.perm[kki[3].uint8 + k1i[3].uint8]
+        ]
+      ]][2]
+    ])
+    gx2 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + i2i[0].uint8 + simplex.perm[
+          jji[0].uint8 + j2i[0].uint8 + simplex.perm[kki[0].uint8 + k2i[0].uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + i2i[1].uint8 + simplex.perm[
+          jji[1].uint8 + j2i[1].uint8 + simplex.perm[kki[1].uint8 + k2i[1].uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + i2i[2].uint8 + simplex.perm[
+          jji[2].uint8 + j2i[2].uint8 + simplex.perm[kki[2].uint8 + k2i[2].uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + i2i[3].uint8 + simplex.perm[
+          jji[3].uint8 + j2i[3].uint8 + simplex.perm[kki[3].uint8 + k2i[3].uint8]
+        ]
+      ]][0]
+    ])
+    gy2 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + i2i[0].uint8 + simplex.perm[
+          jji[0].uint8 + j2i[0].uint8 + simplex.perm[kki[0].uint8 + k2i[0].uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + i2i[1].uint8 + simplex.perm[
+          jji[1].uint8 + j2i[1].uint8 + simplex.perm[kki[1].uint8 + k2i[1].uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + i2i[2].uint8 + simplex.perm[
+          jji[2].uint8 + j2i[2].uint8 + simplex.perm[kki[2].uint8 + k2i[2].uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + i2i[3].uint8 + simplex.perm[
+          jji[3].uint8 + j2i[3].uint8 + simplex.perm[kki[3].uint8 + k2i[3].uint8]
+        ]
+      ]][1]
+    ])
+    gz2 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + i2i[0].uint8 + simplex.perm[
+          jji[0].uint8 + j2i[0].uint8 + simplex.perm[kki[0].uint8 + k2i[0].uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + i2i[1].uint8 + simplex.perm[
+          jji[1].uint8 + j2i[1].uint8 + simplex.perm[kki[1].uint8 + k2i[1].uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + i2i[2].uint8 + simplex.perm[
+          jji[2].uint8 + j2i[2].uint8 + simplex.perm[kki[2].uint8 + k2i[2].uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + i2i[3].uint8 + simplex.perm[
+          jji[3].uint8 + j2i[3].uint8 + simplex.perm[kki[3].uint8 + k2i[3].uint8]
+        ]
+      ]][2]
+    ])
+    gx3 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + 1.uint8 + simplex.perm[
+          jji[0].uint8 + 1.uint8 + simplex.perm[kki[0].uint8 + 1.uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + 1.uint8 + simplex.perm[
+          jji[1].uint8 + 1.uint8 + simplex.perm[kki[1].uint8 + 1.uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + 1.uint8 + simplex.perm[
+          jji[2].uint8 + 1.uint8 + simplex.perm[kki[2].uint8 + 1.uint8]
+        ]
+      ]][0],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + 1.uint8 + simplex.perm[
+          jji[3].uint8 + 1.uint8 + simplex.perm[kki[3].uint8 + 1.uint8]
+        ]
+      ]][0]
+    ])
+    gy3 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + 1.uint8 + simplex.perm[
+          jji[0].uint8 + 1.uint8 + simplex.perm[kki[0].uint8 + 1.uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + 1.uint8 + simplex.perm[
+          jji[1].uint8 + 1.uint8 + simplex.perm[kki[1].uint8 + 1.uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + 1.uint8 + simplex.perm[
+          jji[2].uint8 + 1.uint8 + simplex.perm[kki[2].uint8 + 1.uint8]
+        ]
+      ]][1],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + 1.uint8 + simplex.perm[
+          jji[3].uint8 + 1.uint8 + simplex.perm[kki[3].uint8 + 1.uint8]
+        ]
+      ]][1]
+    ])
+    gz3 = cast[m128]([
+      grad3[simplex.permMod12[
+        iii[0].uint8 + 1.uint8 + simplex.perm[
+          jji[0].uint8 + 1.uint8 + simplex.perm[kki[0].uint8 + 1.uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[1].uint8 + 1.uint8 + simplex.perm[
+          jji[1].uint8 + 1.uint8 + simplex.perm[kki[1].uint8 + 1.uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[2].uint8 + 1.uint8 + simplex.perm[
+          jji[2].uint8 + 1.uint8 + simplex.perm[kki[2].uint8 + 1.uint8]
+        ]
+      ]][2],
+      grad3[simplex.permMod12[
+        iii[3].uint8 + 1.uint8 + simplex.perm[
+          jji[3].uint8 + 1.uint8 + simplex.perm[kki[3].uint8 + 1.uint8]
+        ]
+      ]][2]
+    ])
+
+  let
+    n0 = blend(vec0, vec1, t0gt) *
+      t0 * t0 * t0 * t0 * (gx0 * x0 + gy0 * y0 + gz0 * z0)
+    n1 = blend(vec0, vec1, t1gt) *
+      t1 * t1 * t1 * t1 * (gx1 * x1 + gy1 * y1 + gz1 * z1)
+    n2 = blend(vec0, vec1, t2gt) *
+      t2 * t2 * t2 * t2 * (gx2 * x2 + gy2 * y2 + gz2 * z2)
+    n3 = blend(vec0, vec1, t3gt) *
+      t3 * t3 * t3 * t3 * (gx3 * x3 + gy3 * y3 + gz3 * z3)
+
+  mm_set1_ps(32) * (n0 + n1 + n2 + n3)
 
 func column4(simplex: Simplex, x, y, z, step: float32): array[4, m128] =
   for i in 0 ..< 4:
-    result[i] = simplex.layer4(x, y, z + i.float32 * step, step)
+    result[i] = simplex.layer4(x, y + i.float32 * step, z, step)
 
 func row4(simplex: Simplex, x, y, z, step: float32): array[4, array[4, m128]] =
   for i in 0 ..< 4:
     result[i] = simplex.column4(x + i.float32 * step, y, z, step)
 
-func grid4(
+func grid4*(
   simplex: Simplex, x, y, z: float32
 ): array[4, array[4, array[4, float32]]] =
-  cast[array[4, array[4, array[4, float32]]]](simplex.row4(x, y, z, 1))
+  ## Generates a 4x4 2D noise grid based on the Simplex parameters.
+  ## Starts at (x, y) and moves by +1 in the x and y directions.
+  ## Uses SSE2 SIMD insructions.
+
+  if simplex.octaves == 0:
+    failOctaves()
+
+  var
+    totals: array[4, array[4, m128]]
+    amplitude = mm_set1_ps(simplex.amplitude)
+    gain = mm_set1_ps(simplex.gain)
+    frequency = simplex.frequency
+
+  for _ in 0 ..< simplex.octaves:
+    let rows = simplex.row4(
+      x * frequency, y * frequency, z * frequency, frequency
+    )
+    for i in 0 ..< 4:
+      for j in 0 ..< 4:
+        totals[i][j] = totals[i][j] + rows[i][j] * amplitude
+
+    amplitude = amplitude * gain
+    frequency *= simplex.lacunarity
+
+  if simplex.octaves > 1:
+    let octaves = mm_set1_ps(simplex.octaves.float32)
+    for i in 0 ..< 4:
+      for j in 0 ..< 4:
+        totals[i][j] = totals[i][j] / octaves
+
+  cast[array[4, array[4, array[4, float32]]]](totals)
 
 when defined(release):
   {.pop.}
@@ -429,15 +765,42 @@ when isMainModule:
   #     inc(c, 16)
   #   echo "verify: ", c, " ", z
 
-  timeIt "3d":
+  timeIt "3d normal":
     var c: int
-    var q: float32
+    var q: float
     for x in 0 ..< 4:
       for y in 0 ..< 4:
-        for z in  countup(-240000, 240000-1, 1):
+        for z in countup(-120000, 120000-1, 1):
           q += s.value(x, y, z)
           inc c
     debugecho "verify: ", c, " ", q
+
+  timeIt "3d simd":
+    var c: int
+    var q: float
+    for z in countup(-120000, 120000-1, 4):
+      let tmp = s.grid4(0.float32, 0.float32, z.float32)
+      for i in 0 ..< 4:
+        for j in 0 ..< 4:
+          for k in 0 ..< 4:
+            q = q + tmp[i][j][k]
+      inc(c, 64)
+    debugecho "verify: ", c, " ", q
+
+
+  # var t: float32
+  # for p in countup(-12000, 12000-1, 4):
+  #   let simd = s.grid4(p.float32, p.float32, p.float32)
+
+  #   for x in 0 ..< 4:
+  #     for y in 0 ..< 4:
+  #       for z in 0 ..< 4:
+  #         let n = s.value(x + p, y + p, z + p)
+  #         t += n
+  #         let diff = abs(simd[x][y][z] - n)
+  #         if diff > 0:
+  #           echo diff, " @ ", x + p, " ", y + p, " ", z + p
+  # debugEcho t
 
   # for x in countup(-9513, -9513+7, 8):
   # let x = -9513

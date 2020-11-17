@@ -17,11 +17,20 @@ func mm_or_ps(a, b: m128): m128
 func mm_xor_ps(a, b: m128): m128
   {.importc: "_mm_xor_ps", header: "xmmintrin.h".}
 
+func mm_andnot_ps*(a, b: m128): m128
+  {.importc: "_mm_andnot_ps", header: "xmmintrin.h".}
+
 func mm_cmpgt_ps(a, b: m128): m128
   {.importc: "_mm_cmpgt_ps", header: "xmmintrin.h".}
 
-func mm_cmplt_ps*(a, b: m128): m128
+func mm_cmpge_ps(a, b: m128): m128
+  {.importc: "_mm_cmpge_ps", header: "xmmintrin.h".}
+
+func mm_cmplt_ps(a, b: m128): m128
   {.importc: "_mm_cmplt_ps", header: "xmmintrin.h".}
+
+func mm_cmple_ps(a, b: m128): m128
+  {.importc: "_mm_cmple_ps", header: "xmmintrin.h".}
 
 func mm_add_ps(a: m128, b: m128): m128
   {.importc: "_mm_add_ps", header: "xmmintrin.h".}
@@ -51,16 +60,13 @@ func mm_cvtps_epi32*(a: m128): m128i
 func mm_cvtepi32_ps*(a: m128i): m128
   {.importc: "_mm_cvtepi32_ps", header: "emmintrin.h".}
 
-func mm_and_si128(a, b: m128i): m128i
+func mm_and_si128*(a, b: m128i): m128i
   {.importc: "_mm_and_si128", header: "emmintrin.h".}
 
 # For readability
 
 template `and`*(a, b: m128): m128 =
   mm_and_ps(a, b)
-
-template `and`*(a, b: m128i): m128i =
-  mm_and_si128(a, b)
 
 template `or`*(a, b: m128): m128 =
   mm_or_ps(a, b)
@@ -71,7 +77,13 @@ template `xor`*(a, b: m128): m128 =
 template `>`*(a, b: m128): m128 =
   mm_cmpgt_ps(a, b)
 
+template `>=`*(a, b: m128): m128 =
+  mm_cmpge_ps(a, b)
+
 template `<`*(a, b: m128): m128 =
+  mm_cmplt_ps(a, b)
+
+template `<=`*(a, b: m128): m128 =
   mm_cmplt_ps(a, b)
 
 template `+`*(a, b: m128): m128 =
