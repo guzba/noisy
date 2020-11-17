@@ -330,6 +330,9 @@ func grid4*(simplex: Simplex, x, y: float32): array[4, array[4, float32]] =
 
   cast[array[4, array[4, float32]]](totals)
 
+template grid4*(simplex: Simplex, x, y: int): array[4, array[4, float32]] =
+  simplex.grid4(x.float32, y.float32)
+
 func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
   let
     F3 = mm_set1_ps(F3)
@@ -673,6 +676,11 @@ func grid4*(
 
   cast[array[4, array[4, array[4, float32]]]](totals)
 
+template grid4*(
+  simplex: Simplex, x, y, z: int
+): array[4, array[4, array[4, float32]]] =
+  simplex.grid4(x.float32, y.float32, z.float32)
+
 when defined(release):
   {.pop.}
 
@@ -685,29 +693,6 @@ when isMainModule:
   s.amplitude = 0.2
   s.lacunarity = 1.5
   s.gain = 4.3
-
-  # timeIt "normal":
-  #   var c: int
-  #   var z: float32
-  #   for x in 0 ..< 4:
-  #     for y in countup(-2400, 2400-1, 1):
-  #       # debugEcho s.value(0, y + 1)
-  #       z += s.value(x, y)
-  #       inc c
-  #   echo "verify: ", c, " ", z
-
-  # timeIt "sse2":
-  #   var c: int
-  #   var z: float32
-  #   for y in countup(-2400, 2400-1, 4):
-  #     let tmp = cast[array[4, array[4, float32]]](s.grid4(0, y.float32))
-  #     # debugEcho tmp[0][1]
-  #     z = z + tmp[0][0] + tmp[0][1] + tmp[0][2] + tmp[0][3]
-  #     z = z + tmp[1][0] + tmp[1][1] + tmp[1][2] + tmp[1][3]
-  #     z = z + tmp[2][0] + tmp[2][1] + tmp[2][2] + tmp[2][3]
-  #     z = z + tmp[3][0] + tmp[3][1] + tmp[3][2] + tmp[3][3]
-  #     inc(c, 16)
-  #   echo "verify: ", c, " ", z
 
   timeIt "3d normal":
     var c: int
@@ -730,30 +715,6 @@ when isMainModule:
             q = q + tmp[i][j][k]
       inc(c, 64)
     debugecho "verify: ", c, " ", q
-
-
-  # var t: float32
-  # for p in countup(-12000, 12000-1, 4):
-  #   let simd = s.grid4(p.float32, p.float32, p.float32)
-
-  #   for x in 0 ..< 4:
-  #     for y in 0 ..< 4:
-  #       for z in 0 ..< 4:
-  #         let n = s.value(x + p, y + p, z + p)
-  #         t += n
-  #         let diff = abs(simd[x][y][z] - n)
-  #         if diff > 0:
-  #           echo diff, " @ ", x + p, " ", y + p, " ", z + p
-  # debugEcho t
-
-  # for x in countup(-9513, -9513+7, 8):
-  # let x = -9513
-  # let a = cast[array[8, float32]](s.column8(x.float32, 0, 1))
-  # echo a
-  # for i in 0 ..< 8:
-  #   echo s.value(x, i)
-    # if a[i] != sv:
-    #   debugEcho "not equal @", x + i, " ", a[i], " ", sv
 
   # import chroma, flippy
 
