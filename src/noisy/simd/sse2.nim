@@ -84,7 +84,7 @@ template `<`*(a, b: m128): m128 =
   mm_cmplt_ps(a, b)
 
 template `<=`*(a, b: m128): m128 =
-  mm_cmplt_ps(a, b)
+  mm_cmple_ps(a, b)
 
 template `+`*(a, b: m128): m128 =
   mm_add_ps(a, b)

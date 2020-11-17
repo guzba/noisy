@@ -736,11 +736,11 @@ when isMainModule:
   import fidget/opengl/perf
 
   var s = initSimplex(1988)
-  # s.octaves = 3
-  # s.frequency = 4
-  # s.amplitude = 0.2
-  # s.lacunarity = 1.5
-  # s.gain = 4.3
+  s.octaves = 3
+  s.frequency = 4
+  s.amplitude = 0.2
+  s.lacunarity = 1.5
+  s.gain = 4.3
 
   # timeIt "normal":
   #   var c: int
@@ -770,20 +770,21 @@ when isMainModule:
     var q: float
     for x in 0 ..< 4:
       for y in 0 ..< 4:
-        for z in countup(-120000, 120000-1, 1):
-          q += s.value(x, y, z)
+        for z in countup(-120000, 240000-1, 1):
+          # q +=
+          discard s.value(x, y, z)
           inc c
     debugecho "verify: ", c, " ", q
 
   timeIt "3d simd":
     var c: int
     var q: float
-    for z in countup(-120000, 120000-1, 4):
+    for z in countup(-120000, 240000-1, 4):
       let tmp = s.grid4(0.float32, 0.float32, z.float32)
-      for i in 0 ..< 4:
-        for j in 0 ..< 4:
-          for k in 0 ..< 4:
-            q = q + tmp[i][j][k]
+      # for i in 0 ..< 4:
+      #   for j in 0 ..< 4:
+      #     for k in 0 ..< 4:
+      #       q = q + tmp[i][j][k]
       inc(c, 64)
     debugecho "verify: ", c, " ", q
 
