@@ -17,8 +17,8 @@ type
   Simplex* = object
     octaves*: int
     amplitude*, frequency*, lacunarity*, gain*: float32
-    perm*: array[256, uint8]
-    permMod12*: array[256, uint8]
+    perm: array[512, int32]
+    permMod12: array[512, int32]
 
   NoisyError* = object of ValueError
 
@@ -36,7 +36,7 @@ func initSimplex*(seed: int): Simplex =
   result.gain = 0.5
 
   for i in 0 ..< result.perm.len:
-    result.perm[i] = i.uint8
+    result.perm[i] = i.int32 and 255
   var r = initRand(seed)
   shuffle(r, result.perm)
   for i in 0 ..< result.perm.len:
@@ -56,15 +56,15 @@ func noise(simplex: Simplex, x, y: float32): float32 =
     t = (i + j) * G2
     x0 = x - (i - t)
     y0 = y - (j - t)
-    gt = (x0 > y0).uint8
+    gt = (x0 > y0).int32
     i1 = gt
     j1 = (not gt) and 1
     x1 = x0 - i1.float32 + G2
     y1 = y0 - j1.float32 + G2
     x2 = x0 - 1.float32 + 2.float32 * G2
     y2 = y0 - 1.float32 + 2.float32 * G2
-    ii = (i.int32 and 255).uint8
-    jj = (j.int32 and 255).uint8
+    ii = i.int32 and 255
+    jj = j.int32 and 255
     t0 = 0.5.float32 - x0 * x0 - y0 * y0
     t1 = 0.5.float32 - x1 * x1 - y1 * y1
     t2 = 0.5.float32 - x2 * x2 - y2 * y2
@@ -97,9 +97,9 @@ func noise(simplex: Simplex, x, y, z: float32): float32 =
     x0 = x - (i - t)
     y0 = y - (j - t)
     z0 = z - (k - t)
-    x0gey0 = (x0 >= y0).uint8
-    y0gez0 = (y0 >= z0).uint8
-    x0gez0 = (x0 >= z0).uint8
+    x0gey0 = (x0 >= y0).int32
+    y0gez0 = (y0 >= z0).int32
+    x0gez0 = (x0 >= z0).int32
     i1 = x0gey0 and x0gez0
     j1 = (not x0gey0) and y0gez0
     k1 = (not y0gez0) and 1
@@ -115,9 +115,9 @@ func noise(simplex: Simplex, x, y, z: float32): float32 =
     x3 = x0 - 1.float32 + 3.float32 * G3
     y3 = y0 - 1.float32 + 3.float32 * G3
     z3 = z0 - 1.float32 + 3.float32 * G3
-    ii = (i.int32 and 255).uint8
-    jj = (j.int32 and 255).uint8
-    kk = (k.int32 and 255).uint8
+    ii = i.int32 and 255
+    jj = j.int32 and 255
+    kk = k.int32 and 255
     t0 = 0.6.float32 - x0 * x0 - y0 * y0 - z0 * z0
     t1 = 0.6.float32 - x1 * x1 - y1 * y1 - z1 * z1
     t2 = 0.6.float32 - x2 * x2 - y2 * y2 - z2 * z2
@@ -238,88 +238,56 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
     jji = cast[array[4, int32]](jj)
 
     gx0 = cast[m128]([
-      grad3[simplex.permMod12[iii[0].uint8 + simplex.perm[jji[0].uint8]]][0],
-      grad3[simplex.permMod12[iii[1].uint8 + simplex.perm[jji[1].uint8]]][0],
-      grad3[simplex.permMod12[iii[2].uint8 + simplex.perm[jji[2].uint8]]][0],
-      grad3[simplex.permMod12[iii[3].uint8 + simplex.perm[jji[3].uint8]]][0],
+      grad3[simplex.permMod12[iii[0] + simplex.perm[jji[0]]]][0],
+      grad3[simplex.permMod12[iii[1] + simplex.perm[jji[1]]]][0],
+      grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][0],
+      grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][0],
     ])
     gy0 = cast[m128]([
-      grad3[simplex.permMod12[iii[0].uint8 + simplex.perm[jji[0].uint8]]][1],
-      grad3[simplex.permMod12[iii[1].uint8 + simplex.perm[jji[1].uint8]]][1],
-      grad3[simplex.permMod12[iii[2].uint8 + simplex.perm[jji[2].uint8]]][1],
-      grad3[simplex.permMod12[iii[3].uint8 + simplex.perm[jji[3].uint8]]][1],
+      grad3[simplex.permMod12[iii[0] + simplex.perm[jji[0]]]][1],
+      grad3[simplex.permMod12[iii[1] + simplex.perm[jji[1]]]][1],
+      grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][1],
+      grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][1],
     ])
     gx1  = cast[m128]([
       grad3[
-        simplex.permMod12[iii[0].uint8 + i1i[0].uint8 +
-        simplex.perm[jji[0].uint8 + j1i[0].uint8]]
+        simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
       ][0],
       grad3[
-        simplex.permMod12[iii[1].uint8 + i1i[1].uint8 +
-        simplex.perm[jji[1].uint8 + j1i[1].uint8]]
+        simplex.permMod12[iii[1] + i1i[1] + simplex.perm[jji[1] + j1i[1]]]
       ][0],
       grad3[
-        simplex.permMod12[iii[2].uint8 + i1i[2].uint8 +
-        simplex.perm[jji[2].uint8 + j1i[2].uint8]]
+        simplex.permMod12[iii[2] + i1i[2] + simplex.perm[jji[2] + j1i[2]]]
       ][0],
       grad3[
-        simplex.permMod12[iii[3].uint8 + i1i[3].uint8 +
-        simplex.perm[jji[3].uint8 + j1i[3].uint8]]
+        simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
       ][0]
     ])
     gy1  = cast[m128]([
       grad3[
-        simplex.permMod12[iii[0].uint8 + i1i[0].uint8 +
-        simplex.perm[jji[0].uint8 + j1i[0].uint8]]
+        simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
       ][1],
       grad3[
-        simplex.permMod12[iii[1].uint8 + i1i[1].uint8 +
-        simplex.perm[jji[1].uint8 + j1i[1].uint8]]
+        simplex.permMod12[iii[1] + i1i[1] + simplex.perm[jji[1] + j1i[1]]]
       ][1],
       grad3[
-        simplex.permMod12[iii[2].uint8 + i1i[2].uint8 +
-        simplex.perm[jji[2].uint8 + j1i[2].uint8]]
+        simplex.permMod12[iii[2] + i1i[2] + simplex.perm[jji[2] + j1i[2]]]
       ][1],
       grad3[
-        simplex.permMod12[iii[3].uint8 + i1i[3].uint8 +
-        simplex.perm[jji[3].uint8 + j1i[3].uint8]]
+        simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
       ][1]
     ])
     gx2  = cast[m128]([
-      grad3[
-        simplex.permMod12[iii[0].uint8 + 1.uint8 +
-        simplex.perm[jji[0].uint8 + 1.uint8]]
-      ][0],
-      grad3[
-        simplex.permMod12[iii[1].uint8 + 1.uint8 +
-        simplex.perm[jji[1].uint8 + 1.uint8]]
-      ][0],
-      grad3[
-        simplex.permMod12[iii[2].uint8 + 1.uint8 +
-        simplex.perm[jji[2].uint8 + 1.uint8]]
-      ][0],
-      grad3[
-        simplex.permMod12[iii[3].uint8 + 1.uint8 +
-        simplex.perm[jji[3].uint8 + 1.uint8]]
-      ][0]
+      grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][0],
+      grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][0],
+      grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][0],
+      grad3[simplex.permMod12[iii[3] + 1 + simplex.perm[jji[3] + 1]]][0]
     ])
     gy2  = cast[m128]([
-      grad3[
-        simplex.permMod12[iii[0].uint8 + 1.uint8 +
-        simplex.perm[jji[0].uint8 + 1.uint8]]
-      ][1],
-      grad3[
-        simplex.permMod12[iii[1].uint8 + 1.uint8 +
-        simplex.perm[jji[1].uint8 + 1.uint8]]
-      ][1],
-      grad3[
-        simplex.permMod12[iii[2].uint8 + 1.uint8 +
-        simplex.perm[jji[2].uint8 + 1.uint8]]
-      ][1],
-      grad3[
-        simplex.permMod12[iii[3].uint8 + 1.uint8 +
-        simplex.perm[jji[3].uint8 + 1.uint8]]
-      ][1]
+      grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][1],
+      grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][1],
+      grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][1],
+      grad3[simplex.permMod12[iii[3] + 1 + simplex.perm[jji[3] + 1]]][1]
     ])
 
   let
@@ -435,243 +403,219 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
 
     gx0 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + simplex.perm[jji[0].uint8 + simplex.perm[kki[0]]]
+        iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
       ]][0],
       grad3[simplex.permMod12[
-        iii[1].uint8 + simplex.perm[jji[1].uint8 + simplex.perm[kki[1]]]
+        iii[1] + simplex.perm[jji[1] + simplex.perm[kki[1]]]
       ]][0],
       grad3[simplex.permMod12[
-        iii[2].uint8 + simplex.perm[jji[2].uint8 + simplex.perm[kki[2]]]
+        iii[2] + simplex.perm[jji[2] + simplex.perm[kki[2]]]
       ]][0],
       grad3[simplex.permMod12[
-        iii[3].uint8 + simplex.perm[jji[3].uint8 + simplex.perm[kki[3]]]
+        iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
       ]][0]
     ])
     gy0 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + simplex.perm[jji[0].uint8 + simplex.perm[kki[0]]]
+        iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
       ]][1],
       grad3[simplex.permMod12[
-        iii[1].uint8 + simplex.perm[jji[1].uint8 + simplex.perm[kki[1]]]
+        iii[1] + simplex.perm[jji[1] + simplex.perm[kki[1]]]
       ]][1],
       grad3[simplex.permMod12[
-        iii[2].uint8 + simplex.perm[jji[2].uint8 + simplex.perm[kki[2]]]
+        iii[2] + simplex.perm[jji[2] + simplex.perm[kki[2]]]
       ]][1],
       grad3[simplex.permMod12[
-        iii[3].uint8 + simplex.perm[jji[3].uint8 + simplex.perm[kki[3]]]
+        iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
       ]][1]
     ])
     gz0 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + simplex.perm[jji[0].uint8 + simplex.perm[kki[0]]]
+        iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
       ]][2],
       grad3[simplex.permMod12[
-        iii[1].uint8 + simplex.perm[jji[1].uint8 + simplex.perm[kki[1]]]
+        iii[1] + simplex.perm[jji[1] + simplex.perm[kki[1]]]
       ]][2],
       grad3[simplex.permMod12[
-        iii[2].uint8 + simplex.perm[jji[2].uint8 + simplex.perm[kki[2]]]
+        iii[2] + simplex.perm[jji[2] + simplex.perm[kki[2]]]
       ]][2],
       grad3[simplex.permMod12[
-        iii[3].uint8 + simplex.perm[jji[3].uint8 + simplex.perm[kki[3]]]
+        iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
       ]][2]
     ])
     gx1 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + i1i[0].uint8 + simplex.perm[
-          jji[0].uint8 + j1i[0].uint8 + simplex.perm[kki[0].uint8 + k1i[0].uint8]
+        iii[0] + i1i[0] + simplex.perm[
+          jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
         ]
       ]][0],
       grad3[simplex.permMod12[
-        iii[1].uint8 + i1i[1].uint8 + simplex.perm[
-          jji[1].uint8 + j1i[1].uint8 + simplex.perm[kki[1].uint8 + k1i[1].uint8]
+        iii[1] + i1i[1] + simplex.perm[
+          jji[1] + j1i[1] + simplex.perm[kki[1] + k1i[1]]
         ]
       ]][0],
       grad3[simplex.permMod12[
-        iii[2].uint8 + i1i[2].uint8 + simplex.perm[
-          jji[2].uint8 + j1i[2].uint8 + simplex.perm[kki[2].uint8 + k1i[2].uint8]
+        iii[2] + i1i[2] + simplex.perm[
+          jji[2] + j1i[2] + simplex.perm[kki[2] + k1i[2]]
         ]
       ]][0],
       grad3[simplex.permMod12[
-        iii[3].uint8 + i1i[3].uint8 + simplex.perm[
-          jji[3].uint8 + j1i[3].uint8 + simplex.perm[kki[3].uint8 + k1i[3].uint8]
+        iii[3] + i1i[3] + simplex.perm[
+          jji[3] + j1i[3] + simplex.perm[kki[3] + k1i[3]]
         ]
       ]][0]
     ])
     gy1 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + i1i[0].uint8 + simplex.perm[
-          jji[0].uint8 + j1i[0].uint8 + simplex.perm[kki[0].uint8 + k1i[0].uint8]
+        iii[0] + i1i[0] + simplex.perm[
+          jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
         ]
       ]][1],
       grad3[simplex.permMod12[
-        iii[1].uint8 + i1i[1].uint8 + simplex.perm[
-          jji[1].uint8 + j1i[1].uint8 + simplex.perm[kki[1].uint8 + k1i[1].uint8]
+        iii[1] + i1i[1] + simplex.perm[
+          jji[1] + j1i[1] + simplex.perm[kki[1] + k1i[1]]
         ]
       ]][1],
       grad3[simplex.permMod12[
-        iii[2].uint8 + i1i[2].uint8 + simplex.perm[
-          jji[2].uint8 + j1i[2].uint8 + simplex.perm[kki[2].uint8 + k1i[2].uint8]
+        iii[2] + i1i[2] + simplex.perm[
+          jji[2] + j1i[2] + simplex.perm[kki[2] + k1i[2]]
         ]
       ]][1],
       grad3[simplex.permMod12[
-        iii[3].uint8 + i1i[3].uint8 + simplex.perm[
-          jji[3].uint8 + j1i[3].uint8 + simplex.perm[kki[3].uint8 + k1i[3].uint8]
+        iii[3] + i1i[3] + simplex.perm[
+          jji[3] + j1i[3] + simplex.perm[kki[3] + k1i[3]]
         ]
       ]][1]
     ])
     gz1 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + i1i[0].uint8 + simplex.perm[
-          jji[0].uint8 + j1i[0].uint8 + simplex.perm[kki[0].uint8 + k1i[0].uint8]
+        iii[0] + i1i[0] + simplex.perm[
+          jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
         ]
       ]][2],
       grad3[simplex.permMod12[
-        iii[1].uint8 + i1i[1].uint8 + simplex.perm[
-          jji[1].uint8 + j1i[1].uint8 + simplex.perm[kki[1].uint8 + k1i[1].uint8]
+        iii[1] + i1i[1] + simplex.perm[
+          jji[1] + j1i[1] + simplex.perm[kki[1] + k1i[1]]
         ]
       ]][2],
       grad3[simplex.permMod12[
-        iii[2].uint8 + i1i[2].uint8 + simplex.perm[
-          jji[2].uint8 + j1i[2].uint8 + simplex.perm[kki[2].uint8 + k1i[2].uint8]
+        iii[2] + i1i[2] + simplex.perm[
+          jji[2] + j1i[2] + simplex.perm[kki[2] + k1i[2]]
         ]
       ]][2],
       grad3[simplex.permMod12[
-        iii[3].uint8 + i1i[3].uint8 + simplex.perm[
-          jji[3].uint8 + j1i[3].uint8 + simplex.perm[kki[3].uint8 + k1i[3].uint8]
+        iii[3] + i1i[3] + simplex.perm[
+          jji[3] + j1i[3] + simplex.perm[kki[3] + k1i[3]]
         ]
       ]][2]
     ])
     gx2 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + i2i[0].uint8 + simplex.perm[
-          jji[0].uint8 + j2i[0].uint8 + simplex.perm[kki[0].uint8 + k2i[0].uint8]
+        iii[0] + i2i[0] + simplex.perm[
+          jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
         ]
       ]][0],
       grad3[simplex.permMod12[
-        iii[1].uint8 + i2i[1].uint8 + simplex.perm[
-          jji[1].uint8 + j2i[1].uint8 + simplex.perm[kki[1].uint8 + k2i[1].uint8]
+        iii[1] + i2i[1] + simplex.perm[
+          jji[1] + j2i[1] + simplex.perm[kki[1] + k2i[1]]
         ]
       ]][0],
       grad3[simplex.permMod12[
-        iii[2].uint8 + i2i[2].uint8 + simplex.perm[
-          jji[2].uint8 + j2i[2].uint8 + simplex.perm[kki[2].uint8 + k2i[2].uint8]
+        iii[2] + i2i[2] + simplex.perm[
+          jji[2] + j2i[2] + simplex.perm[kki[2] + k2i[2]]
         ]
       ]][0],
       grad3[simplex.permMod12[
-        iii[3].uint8 + i2i[3].uint8 + simplex.perm[
-          jji[3].uint8 + j2i[3].uint8 + simplex.perm[kki[3].uint8 + k2i[3].uint8]
+        iii[3] + i2i[3] + simplex.perm[
+          jji[3] + j2i[3] + simplex.perm[kki[3] + k2i[3]]
         ]
       ]][0]
     ])
     gy2 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + i2i[0].uint8 + simplex.perm[
-          jji[0].uint8 + j2i[0].uint8 + simplex.perm[kki[0].uint8 + k2i[0].uint8]
+        iii[0] + i2i[0] + simplex.perm[
+          jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
         ]
       ]][1],
       grad3[simplex.permMod12[
-        iii[1].uint8 + i2i[1].uint8 + simplex.perm[
-          jji[1].uint8 + j2i[1].uint8 + simplex.perm[kki[1].uint8 + k2i[1].uint8]
+        iii[1] + i2i[1] + simplex.perm[
+          jji[1] + j2i[1] + simplex.perm[kki[1] + k2i[1]]
         ]
       ]][1],
       grad3[simplex.permMod12[
-        iii[2].uint8 + i2i[2].uint8 + simplex.perm[
-          jji[2].uint8 + j2i[2].uint8 + simplex.perm[kki[2].uint8 + k2i[2].uint8]
+        iii[2] + i2i[2] + simplex.perm[
+          jji[2] + j2i[2] + simplex.perm[kki[2] + k2i[2]]
         ]
       ]][1],
       grad3[simplex.permMod12[
-        iii[3].uint8 + i2i[3].uint8 + simplex.perm[
-          jji[3].uint8 + j2i[3].uint8 + simplex.perm[kki[3].uint8 + k2i[3].uint8]
+        iii[3] + i2i[3] + simplex.perm[
+          jji[3] + j2i[3] + simplex.perm[kki[3] + k2i[3]]
         ]
       ]][1]
     ])
     gz2 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + i2i[0].uint8 + simplex.perm[
-          jji[0].uint8 + j2i[0].uint8 + simplex.perm[kki[0].uint8 + k2i[0].uint8]
+        iii[0] + i2i[0] + simplex.perm[
+          jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
         ]
       ]][2],
       grad3[simplex.permMod12[
-        iii[1].uint8 + i2i[1].uint8 + simplex.perm[
-          jji[1].uint8 + j2i[1].uint8 + simplex.perm[kki[1].uint8 + k2i[1].uint8]
+        iii[1] + i2i[1] + simplex.perm[
+          jji[1] + j2i[1] + simplex.perm[kki[1] + k2i[1]]
         ]
       ]][2],
       grad3[simplex.permMod12[
-        iii[2].uint8 + i2i[2].uint8 + simplex.perm[
-          jji[2].uint8 + j2i[2].uint8 + simplex.perm[kki[2].uint8 + k2i[2].uint8]
+        iii[2] + i2i[2] + simplex.perm[
+          jji[2] + j2i[2] + simplex.perm[kki[2] + k2i[2]]
         ]
       ]][2],
       grad3[simplex.permMod12[
-        iii[3].uint8 + i2i[3].uint8 + simplex.perm[
-          jji[3].uint8 + j2i[3].uint8 + simplex.perm[kki[3].uint8 + k2i[3].uint8]
+        iii[3] + i2i[3] + simplex.perm[
+          jji[3] + j2i[3] + simplex.perm[kki[3] + k2i[3]]
         ]
       ]][2]
     ])
     gx3 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + 1.uint8 + simplex.perm[
-          jji[0].uint8 + 1.uint8 + simplex.perm[kki[0].uint8 + 1.uint8]
-        ]
-      ]][0],
+        iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
+      ]]][0],
       grad3[simplex.permMod12[
-        iii[1].uint8 + 1.uint8 + simplex.perm[
-          jji[1].uint8 + 1.uint8 + simplex.perm[kki[1].uint8 + 1.uint8]
-        ]
-      ]][0],
+        iii[1] + 1 + simplex.perm[jji[1] + 1 + simplex.perm[kki[1] + 1]
+      ]]][0],
       grad3[simplex.permMod12[
-        iii[2].uint8 + 1.uint8 + simplex.perm[
-          jji[2].uint8 + 1.uint8 + simplex.perm[kki[2].uint8 + 1.uint8]
-        ]
-      ]][0],
+        iii[2] + 1 + simplex.perm[jji[2] + 1 + simplex.perm[kki[2] + 1]
+      ]]][0],
       grad3[simplex.permMod12[
-        iii[3].uint8 + 1.uint8 + simplex.perm[
-          jji[3].uint8 + 1.uint8 + simplex.perm[kki[3].uint8 + 1.uint8]
-        ]
-      ]][0]
+        iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
+      ]]][0]
     ])
     gy3 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + 1.uint8 + simplex.perm[
-          jji[0].uint8 + 1.uint8 + simplex.perm[kki[0].uint8 + 1.uint8]
-        ]
-      ]][1],
+        iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
+      ]]][1],
       grad3[simplex.permMod12[
-        iii[1].uint8 + 1.uint8 + simplex.perm[
-          jji[1].uint8 + 1.uint8 + simplex.perm[kki[1].uint8 + 1.uint8]
-        ]
-      ]][1],
+        iii[1] + 1 + simplex.perm[jji[1] + 1 + simplex.perm[kki[1] + 1]
+      ]]][1],
       grad3[simplex.permMod12[
-        iii[2].uint8 + 1.uint8 + simplex.perm[
-          jji[2].uint8 + 1.uint8 + simplex.perm[kki[2].uint8 + 1.uint8]
-        ]
-      ]][1],
+        iii[2] + 1 + simplex.perm[jji[2] + 1 + simplex.perm[kki[2] + 1]
+      ]]][1],
       grad3[simplex.permMod12[
-        iii[3].uint8 + 1.uint8 + simplex.perm[
-          jji[3].uint8 + 1.uint8 + simplex.perm[kki[3].uint8 + 1.uint8]
-        ]
-      ]][1]
+        iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
+      ]]][1]
     ])
     gz3 = cast[m128]([
       grad3[simplex.permMod12[
-        iii[0].uint8 + 1.uint8 + simplex.perm[
-          jji[0].uint8 + 1.uint8 + simplex.perm[kki[0].uint8 + 1.uint8]
-        ]
-      ]][2],
+        iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
+      ]]][2],
       grad3[simplex.permMod12[
-        iii[1].uint8 + 1.uint8 + simplex.perm[
-          jji[1].uint8 + 1.uint8 + simplex.perm[kki[1].uint8 + 1.uint8]
-        ]
-      ]][2],
+        iii[1] + 1 + simplex.perm[jji[1] + 1 + simplex.perm[kki[1] + 1]
+      ]]][2],
       grad3[simplex.permMod12[
-        iii[2].uint8 + 1.uint8 + simplex.perm[
-          jji[2].uint8 + 1.uint8 + simplex.perm[kki[2].uint8 + 1.uint8]
-        ]
-      ]][2],
+        iii[2] + 1 + simplex.perm[jji[2] + 1 + simplex.perm[kki[2] + 1]
+      ]]][2],
       grad3[simplex.permMod12[
-        iii[3].uint8 + 1.uint8 + simplex.perm[
-          jji[3].uint8 + 1.uint8 + simplex.perm[kki[3].uint8 + 1.uint8]
-        ]
-      ]][2]
+        iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
+      ]]][2]
     ])
 
   let
@@ -771,8 +715,7 @@ when isMainModule:
     for x in 0 ..< 4:
       for y in 0 ..< 4:
         for z in countup(-120000, 240000-1, 1):
-          # q +=
-          discard s.value(x, y, z)
+          q += s.value(x, y, z)
           inc c
     debugecho "verify: ", c, " ", q
 
@@ -781,10 +724,10 @@ when isMainModule:
     var q: float
     for z in countup(-120000, 240000-1, 4):
       let tmp = s.grid4(0.float32, 0.float32, z.float32)
-      # for i in 0 ..< 4:
-      #   for j in 0 ..< 4:
-      #     for k in 0 ..< 4:
-      #       q = q + tmp[i][j][k]
+      for i in 0 ..< 4:
+        for j in 0 ..< 4:
+          for k in 0 ..< 4:
+            q = q + tmp[i][j][k]
       inc(c, 64)
     debugecho "verify: ", c, " ", q
 
@@ -820,7 +763,7 @@ when isMainModule:
   #   for y in 0 ..< 256:
   #     let
   #       v0 = s.value(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
-  #       c0 = (((v0 + 1) / 2) * 255).uint8
+  #       c0 = (((v0 + 1) / 2) * 255)
   #     img.putRgba(x, y, rgba(c0, c0, c0, 255))
 
   # img.save("noise.png")
