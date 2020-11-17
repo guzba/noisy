@@ -98,8 +98,17 @@ template `*`*(a, b: m128): m128 =
 template `/`*(a, b: m128): m128 =
   mm_div_ps(a, b)
 
-# func `*=`*(a: var m128, b: m128)  =
-#   a = a * b
+template `+=`*(a: var m128, b: m128)  =
+  a = a + b
+
+template `-=`*(a: var m128, b: m128)  =
+  a = a - b
+
+template `*=`*(a: var m128, b: m128)  =
+  a = a * b
+
+template `/=`*(a: var m128, b: m128)  =
+  a = a / b
 
 func floor*(a: m128): m128 {.inline.} =
   const one = [1.float32, 1, 1, 1]

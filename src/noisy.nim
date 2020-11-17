@@ -318,7 +318,7 @@ func grid4*(simplex: Simplex, x, y: float32): array[4, array[4, float32]] =
   for _ in 0 ..< simplex.octaves:
     let rows = simplex.row4(x * frequency, y * frequency, frequency)
     for i in 0 ..< 4:
-      totals[i] = totals[i] + rows[i] * amplitude
+      totals[i] += rows[i] * amplitude
 
     amplitude = amplitude * gain
     frequency *= simplex.lacunarity
@@ -326,7 +326,7 @@ func grid4*(simplex: Simplex, x, y: float32): array[4, array[4, float32]] =
   if simplex.octaves > 1:
     let octaves = mm_set1_ps(simplex.octaves.float32)
     for i in 0 ..< 4:
-      totals[i] = totals[i] / octaves
+      totals[i] /= octaves
 
   cast[array[4, array[4, float32]]](totals)
 
@@ -660,7 +660,7 @@ func grid4*(
     )
     for i in 0 ..< 4:
       for j in 0 ..< 4:
-        totals[i][j] = totals[i][j] + rows[i][j] * amplitude
+        totals[i][j] += rows[i][j] * amplitude
 
     amplitude = amplitude * gain
     frequency *= simplex.lacunarity
@@ -669,7 +669,7 @@ func grid4*(
     let octaves = mm_set1_ps(simplex.octaves.float32)
     for i in 0 ..< 4:
       for j in 0 ..< 4:
-        totals[i][j] = totals[i][j] / octaves
+        totals[i][j] /= octaves
 
   cast[array[4, array[4, array[4, float32]]]](totals)
 
