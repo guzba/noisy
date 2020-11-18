@@ -19,7 +19,7 @@ block basic_2d:
 block simd_2d:
   let start = getMonoTime().ticks
   var c: float
-  let g = simplex.grid(0, 0, 4096, 4096)
+  let g = simplex.grid((0, 0), (4096, 4096))
   for value in g.values:
     c += value
   let delta = float64(getMonoTime().ticks - start) / 1000000000.0
@@ -38,7 +38,7 @@ block basic_3d:
 block simd_3d:
   let start = getMonoTime().ticks
   var c: float
-  let g = simplex.grid(0, 0, 0, 256, 256, 256)
+  let g = simplex.grid((0, 0, 0), (256, 256, 256))
   for value in g.values:
     c += value
   let delta = float64(getMonoTime().ticks - start) / 1000000000.0

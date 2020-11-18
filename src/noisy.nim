@@ -50,6 +50,8 @@ template valueIndex(g: Grid, x, y, z: int): int =
   z + y * g.depth + x * g.height * g.depth
 
 func `[]`*(g: Grid, x, y: int, z = 0): float32 =
+  ## Returns the noise value at (x, y) or (x, y, z).
+
   if x < 0 or x >= g.width:
     raise newException(IndexDefect, "Index x out of bounds")
   if y < 0 or y >= g.height:
@@ -58,7 +60,7 @@ func `[]`*(g: Grid, x, y: int, z = 0): float32 =
     raise newException(IndexDefect, "Index z out of bounds")
   g.values[g.valueIndex(x, y, z)]
 
-func `[]=`(g: Grid, x, y, z: int, value: float32) =
+func `[]=`(g: var Grid, x, y, z: int, value: float32) =
   g.values[g.valueIndex(x, y, z)] = value
 
 func dot(g: array[3, float32], x, y: float32): float32 {.inline.} =
@@ -205,9 +207,11 @@ func value*(simplex: Simplex, x, y, z: float32): float32 =
   total / simplex.octaves.float32
 
 template value*(simplex: Simplex, x, y: int): float32 =
+  ## Helper for working with ints.
   simplex.value(x.float32, y.float32)
 
 template value*(simplex: Simplex, x, y, z: int): float32 =
+  ## Helper for working with ints
   simplex.value(x.float32, y.float32, z.float32)
 
 func column4(simplex: Simplex, x, y, step: float32): m128 =
@@ -681,7 +685,17 @@ func grid4(
 
   totals
 
-func grid*(simplex: Simplex, x, y: float32, width, height: int): Grid =
+func grid*(
+  simplex: Simplex, start: (float32, float32), dimens: (int, int)
+): Grid =
+  ## Beginning at position start, generate a grid of 2D noise based on the
+  ## Simplex parameters. The width and height of the grid is set by the dimens
+  ## paramter. The start position is the bottom left of the grid at [0, 0].
+
+  let
+    (x, y) = start
+    (width, height) = dimens
+
   result = Grid()
   result.width = width
   result.height = height
@@ -710,12 +724,22 @@ func grid*(simplex: Simplex, x, y: float32, width, height: int): Grid =
     for j in heightDone ..< height:
       result[i, j, 0] = simplex.value(x + i.float32, y + j.float32)
 
-template grid*(simplex: Simplex, x, y, width, height: int): Grid =
-  simplex.grid(x.float32, y.float32, width, height)
+template grid*(simplex: Simplex, start: (int, int), dimens: (int, int)): Grid =
+  ## Helper for working with ints.
+  simplex.grid((start[0].float32, start[1].float32), dimens)
 
 func grid*(
-  simplex: Simplex, x, y, z: float32, width, height, depth: int
+  simplex: Simplex, start: (float32, float32, float32), dimens: (int, int, int)
 ): Grid =
+  ## Beginning at position start, generate a grid of DD noise based on the
+  ## Simplex parameters. The width, depth, and height of the grid is set by
+  ## the dimens paramter.
+  ## The start position is the near bottom left of the grid at [0, 0, 0].
+
+  let
+    (x, y, z) = start
+    (width, height, depth) = dimens
+
   result = Grid()
   result.width = width
   result.height = height
@@ -763,8 +787,11 @@ func grid*(
           x + i.float32, y + j.float32, z + k.float32
         )
 
-template grid*(simplex: Simplex, x, y, z, width, depth, height: int): Grid =
-  simplex.grid(x.float32, y.float32, z.float32, width, depth, height)
+template grid*(
+  simplex: Simplex, start: (int, int, int), dimens: (int, int, int)
+): Grid =
+  ## Helper for working with ints.
+  simplex.grid((start[0].float32, start[1].float32, start[2].float32), dimens)
 
 when defined(release):
   {.pop.}
@@ -776,10 +803,10 @@ when isMainModule:
 
   var s = initSimplex(1988)
   s.frequency = 0.1
-  let img = newImage(256, 256, 3)
-  let g = s.grid(0, 0, 0, 256, 256, 1)
-  for x in 0 ..< 256:
-    for y in 0 ..< 256:
+  let img = newImage(480, 480, 3)
+  let g = s.grid((0, 0), (480, 480))
+  for x in 0 ..< 480:
+    for y in 0 ..< 480:
       # for z in 0 ..< 1:
       let
         # v = s.value(x.float32, y.float32)#, z.float32)
@@ -787,4 +814,4 @@ when isMainModule:
         c = (((v + 1) / 2) * 255).uint8
       img.putRgba(x, y, rgba(c, c, c, 255))
 
-  img.save("noise.png")
+  img.save("examples/noise.png")
