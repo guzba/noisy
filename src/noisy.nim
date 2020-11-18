@@ -375,11 +375,11 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
     y0 = y - (j - t)
     z0 = z - (k - t)
     i1 = blend(vec0, vec1, (x0 >= y0 and x0 >= z0))
-    j1 = blend(vec0, vec1,(x0 < y0 and y0 >= z0))
-    k1 = blend(vec0, vec1,(x0 < z0 and y0 < z0))
-    i2 = blend(vec0, vec1,(x0 >= y0 or x0 >= z0))
-    j2 = blend(vec0, vec1,(x0 < y0 or y0 >= z0))
-    k2 = blend(vec0, vec1,(x0 < z0 or y0 < z0))
+    j1 = blend(vec0, vec1, (x0 < y0 and y0 >= z0))
+    k1 = blend(vec0, vec1, (x0 < z0 and y0 < z0))
+    i2 = blend(vec0, vec1, (x0 >= y0 or x0 >= z0))
+    j2 = blend(vec0, vec1, (x0 < y0 or y0 >= z0))
+    k2 = blend(vec0, vec1, (x0 < z0 or y0 < z0))
     x1 = x0 - i1 + G3
     y1 = y0 - j1 + G3
     z1 = z0 - k1 + G3
