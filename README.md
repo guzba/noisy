@@ -134,7 +134,7 @@ template grid(simplex: Simplex; start: (int, int); dimens: (int, int)): Grid
 
 ## **func** grid
 
-Beginning at position start, generate a grid of DD noise based on the Simplex parameters. The width, depth, and height of the grid is set by the dimens paramter. The start position is the near bottom left of the grid at [0, 0, 0].
+Beginning at position start, generate a grid of 3D noise based on the Simplex parameters. The width, depth, and height of the grid is set by the dimens paramter. The start position is the near bottom left of the grid at [0, 0, 0].
 
 ```nim
 func grid(simplex: Simplex; start: (float32, float32, float32);
