@@ -269,7 +269,7 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
       grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][1],
       grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][1],
     ])
-    gx1  = cast[m128]([
+    gx1 = cast[m128]([
       grad3[
         simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
       ][0],
@@ -283,7 +283,7 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
         simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
       ][0]
     ])
-    gy1  = cast[m128]([
+    gy1 = cast[m128]([
       grad3[
         simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
       ][1],
@@ -297,13 +297,13 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
         simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
       ][1]
     ])
-    gx2  = cast[m128]([
+    gx2 = cast[m128]([
       grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][0],
       grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][0],
       grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][0],
       grad3[simplex.permMod12[iii[3] + 1 + simplex.perm[jji[3] + 1]]][0]
     ])
-    gy2  = cast[m128]([
+    gy2 = cast[m128]([
       grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][1],
       grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][1],
       grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][1],
@@ -810,7 +810,7 @@ when isMainModule:
       # for z in 0 ..< 1:
       let
         # v = s.value(x.float32, y.float32)#, z.float32)
-        v = g[x, y]#, z]
+        v = g[x, y] #, z]
         c = (((v + 1) / 2) * 255).uint8
       img.putRgba(x, y, rgba(c, c, c, 255))
 
