@@ -116,15 +116,12 @@ func noise(simplex: Simplex, x, y, z: float32): float32 =
     x0 = x - (i - t)
     y0 = y - (j - t)
     z0 = z - (k - t)
-    x0gey0 = (x0 >= y0).int32
-    y0gez0 = (y0 >= z0).int32
-    x0gez0 = (x0 >= z0).int32
-    i1 = x0gey0 and x0gez0
-    j1 = (not x0gey0) and y0gez0
-    k1 = (not y0gez0) and 1
-    i2 = x0gey0 or (x0gez0 and y0gez0)
-    j2 = (x0gey0 and y0gez0) or ((not x0gey0) and 1)
-    k2  = (x0gey0 and ((not y0gez0) and 1)) or (((not x0gey0) and 1) and ((not x0gez0) and 1))
+    i1 = (x0 >= y0 and x0 >= z0).int32
+    j1 = (x0 < y0 and y0 >= z0).int32
+    k1 = (x0 < z0 and y0 < z0).int32
+    i2 = (x0 >= y0 or x0 >= z0).int32
+    j2 = (x0 < y0 or y0 >= z0).int32
+    k2 = (x0 < z0 or y0 < z0).int32
     x1 = x0 - i1.float32 + G3
     y1 = y0 - j1.float32 + G3
     z1 = z0 - k1.float32 + G3
@@ -373,20 +370,12 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
     x0 = x - (i - t)
     y0 = y - (j - t)
     z0 = z - (k - t)
-    x0gey0 = x0 >= y0
-    y0gez0 = y0 >= z0
-    x0gez0 = x0 >= z0
-    i1 = blend(vec0, vec1, x0gey0 and x0gez0)
-    j1 = blend(vec0, vec1, mm_andnot_ps(x0gey0, y0gez0))
-    k1 = blend(vec0, vec1, mm_andnot_ps(y0gez0, vec1))
-    i2 = blend(vec0, vec1, x0gey0 or (x0gez0 and y0gez0))
-    j2 = blend(vec0, vec1, (x0gey0 and y0gez0) or mm_andnot_ps(x0gey0, vec1))
-    k2 = blend(
-      vec0,
-      vec1,
-      (x0gey0 and mm_andnot_ps(y0gez0, vec1)) or
-        (mm_andnot_ps(x0gey0, vec1) and mm_andnot_ps(x0gez0, vec1))
-    )
+    i1 = blend(vec0, vec1, (x0 >= y0 and x0 >= z0))
+    j1 = blend(vec0, vec1,(x0 < y0 and y0 >= z0))
+    k1 = blend(vec0, vec1,(x0 < z0 and y0 < z0))
+    i2 = blend(vec0, vec1,(x0 >= y0 or x0 >= z0))
+    j2 = blend(vec0, vec1,(x0 < y0 or y0 >= z0))
+    k2 = blend(vec0, vec1,(x0 < z0 or y0 < z0))
     x1 = x0 - i1 + G3
     y1 = y0 - j1 + G3
     z1 = z0 - k1 + G3
@@ -781,49 +770,21 @@ when defined(release):
   {.pop.}
 
 when isMainModule:
-  import fidget/opengl/perf
+  ## Draw an image to see what the noise looks like
+
+  import chroma, flippy
 
   var s = initSimplex(1988)
-  s.octaves = 3
-  s.frequency = 4
-  s.amplitude = 0.2
-  s.lacunarity = 1.5
-  s.gain = 4.3
+  s.frequency = 0.1
+  let img = newImage(256, 256, 3)
+  let g = s.grid(0, 0, 0, 256, 256, 1)
+  for x in 0 ..< 256:
+    for y in 0 ..< 256:
+      # for z in 0 ..< 1:
+      let
+        # v = s.value(x.float32, y.float32)#, z.float32)
+        v = g[x, y]#, z]
+        c = (((v + 1) / 2) * 255).uint8
+      img.putRgba(x, y, rgba(c, c, c, 255))
 
-  # let g = s.grid(0, 0, 4, 4)
-  # debugEcho g.values
-
-  # timeIt "3d normal":
-  #   var c: int
-  #   var q: float
-  #   for x in 0 ..< 4:
-  #     for y in 0 ..< 4:
-  #       for z in countup(-120000, 240000-1, 1):
-  #         q += s.value(x, y, z)
-  #         inc c
-  #   debugecho "verify: ", c, " ", q
-
-  # timeIt "3d simd":
-  #   var c: int
-  #   var q: float
-  #   for z in countup(-120000, 240000-1, 4):
-  #     let tmp = s.grid4(0.float32, 0.float32, z.float32)
-  #     for i in 0 ..< 4:
-  #       for j in 0 ..< 4:
-  #         for k in 0 ..< 4:
-  #           q = q + tmp[i][j][k]
-  #     inc(c, 64)
-  #   debugecho "verify: ", c, " ", q
-
-  # import chroma, flippy
-
-  # var s = initSimplex(1988)
-  # let img = newImage(256, 256, 3)
-  # for x in 0 ..< 256:
-  #   for y in 0 ..< 256:
-  #     let
-  #       v0 = s.value(x.float32 * 0.1.float32, y.float32 * 0.1.float32, 0.float32)
-  #       c0 = (((v0 + 1) / 2) * 255)
-  #     img.putRgba(x, y, rgba(c0, c0, c0, 255))
-
-  # img.save("noise.png")
+  img.save("noise.png")
