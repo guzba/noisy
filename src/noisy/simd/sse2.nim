@@ -2,8 +2,11 @@ type m128* {.importc: "__m128", header: "xmmintrin.h".} = object
 
 # xmmintrin.h
 
-func mm_loadu_ps*(a: pointer): m128
+func mm_loadu_ps*(p: pointer): m128
   {.importc: "_mm_loadu_ps", header: "xmmintrin.h".}
+
+func mm_storeu_ps*(p: pointer, a: m128)
+  {.importc: "_mm_storeu_ps", header: "xmmintrin.h".}
 
 func mm_set1_ps*(a: float32): m128
   {.importc: "_mm_set1_ps", header: "xmmintrin.h".}

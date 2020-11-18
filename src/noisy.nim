@@ -20,6 +20,10 @@ type
     perm: array[512, int32]
     permMod12: array[512, int32]
 
+  Grid* = ref object
+    width*, height*, depth*: int
+    values*: seq[float32]
+
   NoisyError* = object of ValueError
 
 when defined(release):
@@ -41,6 +45,21 @@ func initSimplex*(seed: int): Simplex =
   shuffle(r, result.perm)
   for i in 0 ..< result.perm.len:
     result.permMod12[i] = result.perm[i] mod 12
+
+template valueIndex(g: Grid, x, y, z: int): int =
+  z + y * g.depth + x * g.height * g.depth
+
+func `[]`*(g: Grid, x, y: int, z = 0): float32 =
+  if x < 0 or x >= g.width:
+    raise newException(IndexDefect, "Index x out of bounds")
+  if y < 0 or y >= g.height:
+    raise newException(IndexDefect, "Index y out of bounds")
+  if z < 0 or z >= g.depth:
+    raise newException(IndexDefect, "Index z out of bounds")
+  g.values[g.valueIndex(x, y, z)]
+
+func `[]=`(g: Grid, x, y, z: int, value: float32) =
+  g.values[g.valueIndex(x, y, z)] = value
 
 func dot(g: array[3, float32], x, y: float32): float32 {.inline.} =
   g[0] * x + g[1] * y
@@ -301,7 +320,7 @@ func row4(simplex: Simplex, x, y, step: float32): array[4, m128] =
   for i in 0 ..< 4:
     result[i] = simplex.column4(x + i.float32 * step, y, step)
 
-func grid4*(simplex: Simplex, x, y: float32): array[4, array[4, float32]] =
+func grid4(simplex: Simplex, x, y: float32): array[4, m128] =
   ## Generates a 4x4 2D noise grid based on the Simplex parameters.
   ## Starts at (x, y) and moves by +1 in the x and y directions.
   ## Uses SSE2 SIMD insructions.
@@ -328,10 +347,7 @@ func grid4*(simplex: Simplex, x, y: float32): array[4, array[4, float32]] =
     for i in 0 ..< 4:
       totals[i] /= octaves
 
-  cast[array[4, array[4, float32]]](totals)
-
-template grid4*(simplex: Simplex, x, y: int): array[4, array[4, float32]] =
-  simplex.grid4(x.float32, y.float32)
+  totals
 
 func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
   let
@@ -641,9 +657,9 @@ func row4(simplex: Simplex, x, y, z, step: float32): array[4, array[4, m128]] =
   for i in 0 ..< 4:
     result[i] = simplex.column4(x + i.float32 * step, y, z, step)
 
-func grid4*(
+func grid4(
   simplex: Simplex, x, y, z: float32
-): array[4, array[4, array[4, float32]]] =
+): array[4, array[4, m128]] =
   ## Generates a 4x4 2D noise grid based on the Simplex parameters.
   ## Starts at (x, y) and moves by +1 in the x and y directions.
   ## Uses SSE2 SIMD insructions.
@@ -674,12 +690,92 @@ func grid4*(
       for j in 0 ..< 4:
         totals[i][j] /= octaves
 
-  cast[array[4, array[4, array[4, float32]]]](totals)
+  totals
 
-template grid4*(
-  simplex: Simplex, x, y, z: int
-): array[4, array[4, array[4, float32]]] =
-  simplex.grid4(x.float32, y.float32, z.float32)
+func grid*(simplex: Simplex, x, y: float32, width, height: int): Grid =
+  result = Grid()
+  result.width = width
+  result.height = height
+  result.depth = 1
+  result.values.setLen(width * height)
+
+  var widthDone, heightDone: int
+  for i in countup(0, width - 4, 4):
+    for j in countup(0, height - 4, 4):
+      let grid4 = simplex.grid4(x + i.float32, y + j.float32)
+      for a in 0 ..< 4:
+        mm_storeu_ps(
+          result.values[result.valueIndex(a + i, j, 0)].unsafeAddr,
+          grid4[a]
+        )
+      widthDone = i + 4
+      heightDone = j + 4
+
+  # Fill any width leftover
+  for i in widthDone ..< width:
+    for j in 0 ..< heightDone:
+      result[i, j, 0] = simplex.value(x + i.float32, y + j.float32)
+
+  # Fill any height leftover
+  for i in 0 ..< width:
+    for j in heightDone ..< height:
+      result[i, j, 0] = simplex.value(x + i.float32, y + j.float32)
+
+template grid*(simplex: Simplex, x, y, width, height: int): Grid =
+  simplex.grid(x.float32, y.float32, width, height)
+
+func grid*(
+  simplex: Simplex, x, y, z: float32, width, height, depth: int
+): Grid =
+  result = Grid()
+  result.width = width
+  result.height = height
+  result.depth = depth
+  result.values.setLen(width * height * depth)
+
+  var widthDone, heightDone, depthDone: int
+  for i in countup(0, width - 4, 4):
+    for j in countup(0, height - 4, 4):
+      for k in countup(0, depth - 4, 4):
+        let grid4 = simplex.grid4(
+          x + i.float32, y + j.float32, z + k.float32
+        )
+        for a in 0 ..< 4:
+          for b in 0 ..< 4:
+            mm_storeu_ps(
+              result.values[result.valueIndex(a + i, b + j, k)].unsafeAddr,
+              grid4[a][b]
+            )
+        widthDone = i + 4
+        heightDone = j + 4
+        depthDone = k + 4
+
+  # Fill any width leftover
+  for i in widthDone ..< width:
+    for j in 0 ..< heightDone:
+      for k in 0 ..< depthDone:
+        result[i, j, k] = simplex.value(
+          x + i.float32, y + j.float32, z + k.float32
+        )
+
+  # Fill any height leftover
+  for i in 0 ..< width:
+    for j in heightDone ..< height:
+      for k in 0 ..< depthDone:
+        result[i, j, k] = simplex.value(
+          x + i.float32, y + j.float32, z + k.float32
+        )
+
+  # Fill any depth leftover
+  for i in 0 ..< width:
+    for j in 0 ..< height:
+      for k in depthDone ..< depth:
+        result[i, j, k] = simplex.value(
+          x + i.float32, y + j.float32, z + k.float32
+        )
+
+template grid*(simplex: Simplex, x, y, z, width, depth, height: int): Grid =
+  simplex.grid(x.float32, y.float32, z.float32, width, depth, height)
 
 when defined(release):
   {.pop.}
@@ -694,27 +790,30 @@ when isMainModule:
   s.lacunarity = 1.5
   s.gain = 4.3
 
-  timeIt "3d normal":
-    var c: int
-    var q: float
-    for x in 0 ..< 4:
-      for y in 0 ..< 4:
-        for z in countup(-120000, 240000-1, 1):
-          q += s.value(x, y, z)
-          inc c
-    debugecho "verify: ", c, " ", q
+  # let g = s.grid(0, 0, 4, 4)
+  # debugEcho g.values
 
-  timeIt "3d simd":
-    var c: int
-    var q: float
-    for z in countup(-120000, 240000-1, 4):
-      let tmp = s.grid4(0.float32, 0.float32, z.float32)
-      for i in 0 ..< 4:
-        for j in 0 ..< 4:
-          for k in 0 ..< 4:
-            q = q + tmp[i][j][k]
-      inc(c, 64)
-    debugecho "verify: ", c, " ", q
+  # timeIt "3d normal":
+  #   var c: int
+  #   var q: float
+  #   for x in 0 ..< 4:
+  #     for y in 0 ..< 4:
+  #       for z in countup(-120000, 240000-1, 1):
+  #         q += s.value(x, y, z)
+  #         inc c
+  #   debugecho "verify: ", c, " ", q
+
+  # timeIt "3d simd":
+  #   var c: int
+  #   var q: float
+  #   for z in countup(-120000, 240000-1, 4):
+  #     let tmp = s.grid4(0.float32, 0.float32, z.float32)
+  #     for i in 0 ..< 4:
+  #       for j in 0 ..< 4:
+  #         for k in 0 ..< 4:
+  #           q = q + tmp[i][j][k]
+  #     inc(c, 64)
+  #   debugecho "verify: ", c, " ", q
 
   # import chroma, flippy
 
