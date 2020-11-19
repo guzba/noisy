@@ -38,6 +38,10 @@ Point by point using `value(x, y, z)` | 1.6066s
 Using `grid()` (SIMD accelerated, GCC default) | 1.1329s
 Using `grid()` (SIMD accelerated, `--passC:"-mavx"`) | 0.8382s
 
+## Testing
+
+`nimble test`
+
 # API: noisy
 
 ```nim
