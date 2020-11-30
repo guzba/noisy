@@ -1,4 +1,4 @@
-import math, noisy/simd/sse2, random
+import math, nimsimd/sse2, random
 
 const
   F2 = (0.5 * (sqrt(3.0) - 1)).float32
@@ -31,6 +31,14 @@ when defined(release):
 
 template failOctaves() =
   raise newException(NoisyError, "Octaves must be > 0")
+
+func floor*(a: M128): M128 {.inline.} =
+  const one = [1.float32, 1, 1, 1]
+  let tmp = mm_cvtepi32_ps(mm_cvttps_epi32(a))
+  tmp - (mm_cmplt_ps(a, tmp) and cast[M128](one))
+
+template blend*(a, b, mask: M128): M128 =
+  ((a xor b) and mask) xor a
 
 func initSimplex*(seed: int): Simplex =
   result.octaves = 1
@@ -214,18 +222,18 @@ template value*(simplex: Simplex, x, y, z: int): float32 =
   ## Helper for working with ints
   simplex.value(x.float32, y.float32, z.float32)
 
-func column4(simplex: Simplex, x, y, step: float32): m128 =
+func column4(simplex: Simplex, x, y, step: float32): M128 =
   let
-    F2 = mm_set1_ps(F2)
-    G2 = mm_set1_ps(G2)
-    steps = cast[m128]([0.float32, step, step * 2, step * 3])
-    x = mm_set1_ps(x)
-    y = mm_set1_ps(y) + steps
-    vec0 = mm_set1_ps(0)
-    vec1 = mm_set1_ps(1)
-    vec2 = mm_set1_ps(2)
-    vec0dot5 = mm_set1_ps(0.5)
-    vec255 = mm_set1_epi32(255)
+    F2 = m128(F2)
+    G2 = m128(G2)
+    steps = cast[M128]([0.float32, step, step * 2, step * 3])
+    x = m128(x)
+    y = m128(y) + steps
+    vec0 = m128(0)
+    vec1 = m128(1)
+    vec2 = m128(2)
+    vec0dot5 = m128(0.5)
+    vec255 = m128i(255)
 
   let
     s = (x + y) * F2
@@ -257,19 +265,19 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
     j1i = cast[array[4, int32]](mm_cvtps_epi32(j1))
     jji = cast[array[4, int32]](jj)
 
-    gx0 = cast[m128]([
+    gx0 = cast[M128]([
       grad3[simplex.permMod12[iii[0] + simplex.perm[jji[0]]]][0],
       grad3[simplex.permMod12[iii[1] + simplex.perm[jji[1]]]][0],
       grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][0],
       grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][0],
     ])
-    gy0 = cast[m128]([
+    gy0 = cast[M128]([
       grad3[simplex.permMod12[iii[0] + simplex.perm[jji[0]]]][1],
       grad3[simplex.permMod12[iii[1] + simplex.perm[jji[1]]]][1],
       grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][1],
       grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][1],
     ])
-    gx1 = cast[m128]([
+    gx1 = cast[M128]([
       grad3[
         simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
       ][0],
@@ -283,7 +291,7 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
         simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
       ][0]
     ])
-    gy1 = cast[m128]([
+    gy1 = cast[M128]([
       grad3[
         simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
       ][1],
@@ -297,13 +305,13 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
         simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
       ][1]
     ])
-    gx2 = cast[m128]([
+    gx2 = cast[M128]([
       grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][0],
       grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][0],
       grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][0],
       grad3[simplex.permMod12[iii[3] + 1 + simplex.perm[jji[3] + 1]]][0]
     ])
-    gy2 = cast[m128]([
+    gy2 = cast[M128]([
       grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][1],
       grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][1],
       grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][1],
@@ -315,13 +323,13 @@ func column4(simplex: Simplex, x, y, step: float32): m128 =
     n1 = blend(vec0, vec1, t1gt) * t1 * t1 * t1 * t1 * (gx1 * x1 + gy1 * y1)
     n2 = blend(vec0, vec1, t2gt) * t2 * t2 * t2 * t2 * (gx2 * x2 + gy2 * y2)
 
-  mm_set1_ps(70) * (n0 + n1 + n2)
+  m128(70) * (n0 + n1 + n2)
 
-func row4(simplex: Simplex, x, y, step: float32): array[4, m128] =
+func row4(simplex: Simplex, x, y, step: float32): array[4, M128] =
   for i in 0 ..< 4:
     result[i] = simplex.column4(x + i.float32 * step, y, step)
 
-func grid4(simplex: Simplex, x, y: float32): array[4, m128] =
+func grid4(simplex: Simplex, x, y: float32): array[4, M128] =
   ## Generates a 4x4 2D noise grid based on the Simplex parameters.
   ## Starts at (x, y) and moves by +1 in the x and y directions.
   ## Uses SSE2 SIMD insructions.
@@ -330,9 +338,9 @@ func grid4(simplex: Simplex, x, y: float32): array[4, m128] =
     failOctaves()
 
   var
-    totals: array[4, m128]
-    amplitude = mm_set1_ps(simplex.amplitude)
-    gain = mm_set1_ps(simplex.gain)
+    totals: array[4, M128]
+    amplitude = m128(simplex.amplitude)
+    gain = m128(simplex.gain)
     frequency = simplex.frequency
 
   for _ in 0 ..< simplex.octaves:
@@ -344,26 +352,26 @@ func grid4(simplex: Simplex, x, y: float32): array[4, m128] =
     frequency *= simplex.lacunarity
 
   if simplex.octaves > 1:
-    let octaves = mm_set1_ps(simplex.octaves.float32)
+    let octaves = m128(simplex.octaves.float32)
     for i in 0 ..< 4:
       totals[i] /= octaves
 
   totals
 
-func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
+func layer4(simplex: Simplex, x, y, z, step: float32): M128 =
   let
-    F3 = mm_set1_ps(F3)
-    G3 = mm_set1_ps(G3)
-    steps = cast[m128]([0.float32, step, step * 2, step * 3])
-    x = mm_set1_ps(x)
-    y = mm_set1_ps(y)
-    z = mm_set1_ps(z) + steps
-    vec0 = mm_set1_ps(0)
-    vec1 = mm_set1_ps(1)
-    vec2 = mm_set1_ps(2)
-    vec3 = mm_set1_ps(3)
-    vec0dot6 = mm_set1_ps(0.6)
-    vec255 = mm_set1_epi32(255)
+    F3 = m128(F3)
+    G3 = m128(G3)
+    steps = cast[M128]([0.float32, step, step * 2, step * 3])
+    x = m128(x)
+    y = m128(y)
+    z = m128(z) + steps
+    vec0 = m128(0)
+    vec1 = m128(1)
+    vec2 = m128(2)
+    vec3 = m128(3)
+    vec0dot6 = m128(0.6)
+    vec255 = m128i(255)
 
   let
     s = (x + y + z) * F3
@@ -413,7 +421,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
     k2i = cast[array[4, int32]](mm_cvtps_epi32(k2))
     kki = cast[array[4, int32]](kk)
 
-    gx0 = cast[m128]([
+    gx0 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
       ]][0],
@@ -427,7 +435,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
       ]][0]
     ])
-    gy0 = cast[m128]([
+    gy0 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
       ]][1],
@@ -441,7 +449,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
       ]][1]
     ])
-    gz0 = cast[m128]([
+    gz0 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
       ]][2],
@@ -455,7 +463,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
       ]][2]
     ])
-    gx1 = cast[m128]([
+    gx1 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + i1i[0] + simplex.perm[
           jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
@@ -477,7 +485,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         ]
       ]][0]
     ])
-    gy1 = cast[m128]([
+    gy1 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + i1i[0] + simplex.perm[
           jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
@@ -499,7 +507,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         ]
       ]][1]
     ])
-    gz1 = cast[m128]([
+    gz1 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + i1i[0] + simplex.perm[
           jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
@@ -521,7 +529,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         ]
       ]][2]
     ])
-    gx2 = cast[m128]([
+    gx2 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + i2i[0] + simplex.perm[
           jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
@@ -543,7 +551,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         ]
       ]][0]
     ])
-    gy2 = cast[m128]([
+    gy2 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + i2i[0] + simplex.perm[
           jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
@@ -565,7 +573,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         ]
       ]][1]
     ])
-    gz2 = cast[m128]([
+    gz2 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + i2i[0] + simplex.perm[
           jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
@@ -587,7 +595,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         ]
       ]][2]
     ])
-    gx3 = cast[m128]([
+    gx3 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
       ]]][0],
@@ -601,7 +609,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
       ]]][0]
     ])
-    gy3 = cast[m128]([
+    gy3 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
       ]]][1],
@@ -615,7 +623,7 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
         iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
       ]]][1]
     ])
-    gz3 = cast[m128]([
+    gz3 = cast[M128]([
       grad3[simplex.permMod12[
         iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
       ]]][2],
@@ -640,19 +648,19 @@ func layer4(simplex: Simplex, x, y, z, step: float32): m128 =
     n3 = blend(vec0, vec1, t3gt) *
       t3 * t3 * t3 * t3 * (gx3 * x3 + gy3 * y3 + gz3 * z3)
 
-  mm_set1_ps(32) * (n0 + n1 + n2 + n3)
+  m128(32) * (n0 + n1 + n2 + n3)
 
-func column4(simplex: Simplex, x, y, z, step: float32): array[4, m128] =
+func column4(simplex: Simplex, x, y, z, step: float32): array[4, M128] =
   for i in 0 ..< 4:
     result[i] = simplex.layer4(x, y + i.float32 * step, z, step)
 
-func row4(simplex: Simplex, x, y, z, step: float32): array[4, array[4, m128]] =
+func row4(simplex: Simplex, x, y, z, step: float32): array[4, array[4, M128]] =
   for i in 0 ..< 4:
     result[i] = simplex.column4(x + i.float32 * step, y, z, step)
 
 func grid4(
   simplex: Simplex, x, y, z: float32
-): array[4, array[4, m128]] =
+): array[4, array[4, M128]] =
   ## Generates a 4x4 2D noise grid based on the Simplex parameters.
   ## Starts at (x, y) and moves by +1 in the x and y directions.
   ## Uses SSE2 SIMD insructions.
@@ -661,9 +669,9 @@ func grid4(
     failOctaves()
 
   var
-    totals: array[4, array[4, m128]]
-    amplitude = mm_set1_ps(simplex.amplitude)
-    gain = mm_set1_ps(simplex.gain)
+    totals: array[4, array[4, M128]]
+    amplitude = m128(simplex.amplitude)
+    gain = m128(simplex.gain)
     frequency = simplex.frequency
 
   for _ in 0 ..< simplex.octaves:
@@ -678,7 +686,7 @@ func grid4(
     frequency *= simplex.lacunarity
 
   if simplex.octaves > 1:
-    let octaves = mm_set1_ps(simplex.octaves.float32)
+    let octaves = m128(simplex.octaves.float32)
     for i in 0 ..< 4:
       for j in 0 ..< 4:
         totals[i][j] /= octaves
