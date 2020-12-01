@@ -1,4 +1,4 @@
-version     = "0.4.1"
+version     = "0.4.2"
 author      = "Ryan Oldenburg"
 description = "Nim implementation of various noise types."
 license     = "MIT"
@@ -6,4 +6,4 @@ license     = "MIT"
 srcDir = "src"
 
 requires "nim >= 1.1.0"
-requires "nimsimd >= 0.4.2"
+requires "nimsimd >= 0.4.3"
