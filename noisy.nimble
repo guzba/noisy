@@ -1,4 +1,4 @@
-version     = "0.4.2"
+version     = "0.4.3"
 author      = "Ryan Oldenburg"
 description = "Nim implementation of various noise types."
 license     = "MIT"
