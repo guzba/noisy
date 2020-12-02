@@ -32,12 +32,12 @@ when defined(release):
 template failOctaves() =
   raise newException(NoisyError, "Octaves must be > 0")
 
-func floor*(a: M128): M128 {.inline.} =
+func floor(a: M128): M128 {.inline.} =
   const one = [1.float32, 1, 1, 1]
   let tmp = mm_cvtepi32_ps(mm_cvttps_epi32(a))
   tmp - ((a < tmp) and cast[M128](one))
 
-func blend*(a, b, mask: M128): M128 {.inline.} =
+func blend(a, b, mask: M128): M128 {.inline.} =
   ((a xor b) and mask) xor a
 
 func initSimplex*(seed: int): Simplex =

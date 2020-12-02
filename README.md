@@ -75,20 +75,6 @@ Grid = ref object
 NoisyError = object of ValueError
 ```
 
-## **func** floor
-
-
-```nim
-func floor(a: M128): M128 {.inline.}
-```
-
-## **func** blend
-
-
-```nim
-func blend(a, b, mask: M128): M128 {.inline.}
-```
-
 ## **func** initSimplex
 
 
