@@ -35,7 +35,7 @@ template failOctaves() =
 func floor*(a: M128): M128 {.inline.} =
   const one = [1.float32, 1, 1, 1]
   let tmp = mm_cvtepi32_ps(mm_cvttps_epi32(a))
-  tmp - (mm_cmplt_ps(a, tmp) and cast[M128](one))
+  tmp - ((a < tmp) and cast[M128](one))
 
 template blend*(a, b, mask: M128): M128 =
   ((a xor b) and mask) xor a
