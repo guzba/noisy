@@ -698,7 +698,7 @@ func grid*(
 ): Grid =
   ## Beginning at position start, generate a grid of 2D noise based on the
   ## Simplex parameters. The width and height of the grid is set by the dimens
-  ## paramter.
+  ## parameter.
 
   let
     (x, y) = start
@@ -741,7 +741,7 @@ func grid*(
 ): Grid =
   ## Beginning at position start, generate a grid of 3D noise based on the
   ## Simplex parameters. The width, depth, and height of the grid is set by
-  ## the dimens paramter.
+  ## the dimens parameter.
 
   let
     (x, y, z) = start
