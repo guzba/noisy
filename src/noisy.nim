@@ -37,7 +37,7 @@ func floor*(a: M128): M128 {.inline.} =
   let tmp = mm_cvtepi32_ps(mm_cvttps_epi32(a))
   tmp - ((a < tmp) and cast[M128](one))
 
-template blend*(a, b, mask: M128): M128 =
+func blend*(a, b, mask: M128): M128 {.inline.} =
   ((a xor b) and mask) xor a
 
 func initSimplex*(seed: int): Simplex =
@@ -54,7 +54,7 @@ func initSimplex*(seed: int): Simplex =
   for i in 0 ..< result.perm.len:
     result.permMod12[i] = result.perm[i] mod 12
 
-template valueIndex(g: Grid, x, y, z: int): int =
+func valueIndex(g: Grid, x, y, z: int): int {.inline.} =
   z + y * g.depth + x * g.height * g.depth
 
 func `[]`*(g: Grid, x, y: int, z = 0): float32 =
@@ -214,11 +214,11 @@ func value*(simplex: Simplex, x, y, z: float32): float32 =
 
   total / simplex.octaves.float32
 
-template value*(simplex: Simplex, x, y: int): float32 =
+func value*(simplex: Simplex, x, y: int): float32 {.inline.} =
   ## Helper for working with ints.
   simplex.value(x.float32, y.float32)
 
-template value*(simplex: Simplex, x, y, z: int): float32 =
+func value*(simplex: Simplex, x, y, z: int): float32 {.inline.} =
   ## Helper for working with ints
   simplex.value(x.float32, y.float32, z.float32)
 
@@ -732,7 +732,9 @@ func grid*(
     for j in heightDone ..< height:
       result[i, j, 0] = simplex.value(x + i.float32, y + j.float32)
 
-template grid*(simplex: Simplex, start: (int, int), dimens: (int, int)): Grid =
+func grid*(
+  simplex: Simplex, start: (int, int), dimens: (int, int)
+): Grid {.inline.} =
   ## Helper for working with ints.
   simplex.grid((start[0].float32, start[1].float32), dimens)
 
@@ -794,9 +796,9 @@ func grid*(
           x + i.float32, y + j.float32, z + k.float32
         )
 
-template grid*(
+func grid*(
   simplex: Simplex, start: (int, int, int), dimens: (int, int, int)
-): Grid =
+): Grid {.inline.} =
   ## Helper for working with ints.
   simplex.grid((start[0].float32, start[1].float32, start[2].float32), dimens)
 
