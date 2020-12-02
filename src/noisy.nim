@@ -17,8 +17,8 @@ type
   Simplex* = object
     octaves*: int
     amplitude*, frequency*, lacunarity*, gain*: float32
-    perm: array[512, int32]
-    permMod12: array[512, int32]
+    perm*: array[512, int32]
+    permMod12*: array[512, int32]
 
   Grid* = ref object
     width*, height*, depth*: int
@@ -232,7 +232,8 @@ func column4(simplex: Simplex, x, y, step: float32): M128 =
     vec1 = m128(1)
     vec2 = m128(2)
     vec0dot5 = m128(0.5)
-    vec255 = m128i(255)
+    vec255i = m128i(255)
+    vec1i = m128i(1)
 
   let
     s = (x + y) * F2
@@ -248,8 +249,8 @@ func column4(simplex: Simplex, x, y, step: float32): M128 =
     y1 = y0 - j1 + G2
     x2 = x0 - vec1 + vec2 * G2
     y2 = y0 - vec1 + vec2 * G2
-    ii = mm_cvtps_epi32(i) and vec255
-    jj = mm_cvtps_epi32(j) and vec255
+    ii = mm_cvtps_epi32(i) and vec255i
+    jj = mm_cvtps_epi32(j) and vec255i
     t0 = vec0dot5 - x0 * x0 - y0 * y0
     t1 = vec0dot5 - x1 * x1 - y1 * y1
     t2 = vec0dot5 - x2 * x2 - y2 * y2
@@ -259,62 +260,69 @@ func column4(simplex: Simplex, x, y, step: float32): M128 =
 
   # Set up the gradient vectors
   let
-    i1i = cast[array[4, int32]](mm_cvtps_epi32(i1))
-    iii = cast[array[4, int32]](ii)
-    j1i = cast[array[4, int32]](mm_cvtps_epi32(j1))
     jji = cast[array[4, int32]](jj)
-
+    jjj1 = cast[array[4, int32]](mm_add_epi32(jj, mm_cvtps_epi32(j1)))
+    jjplus1 = cast[array[4, int32]](mm_add_epi32(jj, vec1i))
+    jjperm = cast[M128i]([
+      simplex.perm[jji[0]],
+      simplex.perm[jji[1]],
+      simplex.perm[jji[2]],
+      simplex.perm[jji[3]]
+    ])
+    jjj1perm = cast[M128i]([
+      simplex.perm[jjj1[0]],
+      simplex.perm[jjj1[1]],
+      simplex.perm[jjj1[2]],
+      simplex.perm[jjj1[3]]
+    ])
+    jjplus1perm = cast[M128i]([
+      simplex.perm[jjplus1[0]],
+      simplex.perm[jjplus1[1]],
+      simplex.perm[jjplus1[2]],
+      simplex.perm[jjplus1[3]]
+    ])
+    iiplusjjperm = cast[array[4, int32]](mm_add_epi32(ii, jjperm))
+    iii1plusjjj1perm = cast[array[4, int32]](mm_add_epi32(
+      mm_add_epi32(ii, mm_cvtps_epi32(i1)), jjj1perm)
+    )
+    iiplus1plusjjplus1perm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(ii, vec1i), jjplus1perm)
+    )
     gx0 = cast[M128]([
-      grad3[simplex.permMod12[iii[0] + simplex.perm[jji[0]]]][0],
-      grad3[simplex.permMod12[iii[1] + simplex.perm[jji[1]]]][0],
-      grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][0],
-      grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][0],
+      grad3[simplex.permMod12[iiplusjjperm[0]]][0],
+      grad3[simplex.permMod12[iiplusjjperm[1]]][0],
+      grad3[simplex.permMod12[iiplusjjperm[2]]][0],
+      grad3[simplex.permMod12[iiplusjjperm[3]]][0],
     ])
     gy0 = cast[M128]([
-      grad3[simplex.permMod12[iii[0] + simplex.perm[jji[0]]]][1],
-      grad3[simplex.permMod12[iii[1] + simplex.perm[jji[1]]]][1],
-      grad3[simplex.permMod12[iii[2] + simplex.perm[jji[2]]]][1],
-      grad3[simplex.permMod12[iii[3] + simplex.perm[jji[3]]]][1],
+      grad3[simplex.permMod12[iiplusjjperm[0]]][1],
+      grad3[simplex.permMod12[iiplusjjperm[1]]][1],
+      grad3[simplex.permMod12[iiplusjjperm[2]]][1],
+      grad3[simplex.permMod12[iiplusjjperm[3]]][1],
     ])
     gx1 = cast[M128]([
-      grad3[
-        simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
-      ][0],
-      grad3[
-        simplex.permMod12[iii[1] + i1i[1] + simplex.perm[jji[1] + j1i[1]]]
-      ][0],
-      grad3[
-        simplex.permMod12[iii[2] + i1i[2] + simplex.perm[jji[2] + j1i[2]]]
-      ][0],
-      grad3[
-        simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
-      ][0]
+      grad3[simplex.permMod12[iii1plusjjj1perm[0]]][0],
+      grad3[simplex.permMod12[iii1plusjjj1perm[1]]][0],
+      grad3[simplex.permMod12[iii1plusjjj1perm[2]]][0],
+      grad3[simplex.permMod12[iii1plusjjj1perm[3]]][0]
     ])
     gy1 = cast[M128]([
-      grad3[
-        simplex.permMod12[iii[0] + i1i[0] + simplex.perm[jji[0] + j1i[0]]]
-      ][1],
-      grad3[
-        simplex.permMod12[iii[1] + i1i[1] + simplex.perm[jji[1] + j1i[1]]]
-      ][1],
-      grad3[
-        simplex.permMod12[iii[2] + i1i[2] + simplex.perm[jji[2] + j1i[2]]]
-      ][1],
-      grad3[
-        simplex.permMod12[iii[3] + i1i[3] + simplex.perm[jji[3] + j1i[3]]]
-      ][1]
+      grad3[simplex.permMod12[iii1plusjjj1perm[0]]][1],
+      grad3[simplex.permMod12[iii1plusjjj1perm[1]]][1],
+      grad3[simplex.permMod12[iii1plusjjj1perm[2]]][1],
+      grad3[simplex.permMod12[iii1plusjjj1perm[3]]][1]
     ])
     gx2 = cast[M128]([
-      grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][0],
-      grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][0],
-      grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][0],
-      grad3[simplex.permMod12[iii[3] + 1 + simplex.perm[jji[3] + 1]]][0]
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[0]]][0],
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[1]]][0],
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[2]]][0],
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[3]]][0]
     ])
     gy2 = cast[M128]([
-      grad3[simplex.permMod12[iii[0] + 1 + simplex.perm[jji[0] + 1]]][1],
-      grad3[simplex.permMod12[iii[1] + 1 + simplex.perm[jji[1] + 1]]][1],
-      grad3[simplex.permMod12[iii[2] + 1 + simplex.perm[jji[2] + 1]]][1],
-      grad3[simplex.permMod12[iii[3] + 1 + simplex.perm[jji[3] + 1]]][1]
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[0]]][1],
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[1]]][1],
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[2]]][1],
+      grad3[simplex.permMod12[iiplus1plusjjplus1perm[3]]][1]
     ])
 
   let
@@ -370,7 +378,8 @@ func layer4(simplex: Simplex, x, y, z, step: float32): M128 =
     vec2 = m128(2)
     vec3 = m128(3)
     vec0dot6 = m128(0.6)
-    vec255 = m128i(255)
+    vec255i = m128i(255)
+    vec1i = m128i(1)
 
   let
     s = (x + y + z) * F3
@@ -396,9 +405,9 @@ func layer4(simplex: Simplex, x, y, z, step: float32): M128 =
     x3 = x0 - vec1 + vec3 * G3
     y3 = y0 - vec1 + vec3 * G3
     z3 = z0 - vec1 + vec3 * G3
-    ii = mm_cvtps_epi32(i) and vec255
-    jj = mm_cvtps_epi32(j) and vec255
-    kk = mm_cvtps_epi32(k) and vec255
+    ii = mm_cvtps_epi32(i) and vec255i
+    jj = mm_cvtps_epi32(j) and vec255i
+    kk = mm_cvtps_epi32(k) and vec255i
     t0 = vec0dot6 - x0 * x0 - y0 * y0 - z0 * z0
     t1 = vec0dot6 - x1 * x1 - y1 * y1 - z1 * z1
     t2 = vec0dot6 - x2 * x2 - y2 * y2 - z2 * z2
@@ -410,231 +419,151 @@ func layer4(simplex: Simplex, x, y, z, step: float32): M128 =
 
   # Set up the gradient vectors
   let
-    i1i = cast[array[4, int32]](mm_cvtps_epi32(i1))
-    i2i = cast[array[4, int32]](mm_cvtps_epi32(i2))
-    iii = cast[array[4, int32]](ii)
-    j1i = cast[array[4, int32]](mm_cvtps_epi32(j1))
-    j2i = cast[array[4, int32]](mm_cvtps_epi32(j2))
-    jji = cast[array[4, int32]](jj)
-    k1i = cast[array[4, int32]](mm_cvtps_epi32(k1))
-    k2i = cast[array[4, int32]](mm_cvtps_epi32(k2))
     kki = cast[array[4, int32]](kk)
-
+    kkk1 = cast[array[4, int32]](mm_add_epi32(kk, mm_cvtps_epi32(k1)))
+    kkk2 = cast[array[4, int32]](mm_add_epi32(kk, mm_cvtps_epi32(k2)))
+    kkplus1 = cast[array[4, int32]](mm_add_epi32(kk, vec1i))
+    kkperm = cast[M128i]([
+      simplex.perm[kki[0]],
+      simplex.perm[kki[1]],
+      simplex.perm[kki[2]],
+      simplex.perm[kki[3]]
+    ])
+    kkk1perm = cast[M128i]([
+      simplex.perm[kkk1[0]],
+      simplex.perm[kkk1[1]],
+      simplex.perm[kkk1[2]],
+      simplex.perm[kkk1[3]]
+    ])
+    kkk2perm = cast[M128i]([
+      simplex.perm[kkk2[0]],
+      simplex.perm[kkk2[1]],
+      simplex.perm[kkk2[2]],
+      simplex.perm[kkk2[3]]
+    ])
+    kkplus1perm = cast[M128i]([
+      simplex.perm[kkplus1[0]],
+      simplex.perm[kkplus1[1]],
+      simplex.perm[kkplus1[2]],
+      simplex.perm[kkplus1[3]]
+    ])
+    jjpluskkperm = cast[array[4, int32]](mm_add_epi32(jj, kkperm))
+    jjj1pluskkk1perm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(jj, mm_cvtps_epi32(j1)), kkk1perm)
+    )
+    jjj2pluskkk2perm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(jj, mm_cvtps_epi32(j2)), kkk2perm)
+    )
+    jjplus1pluskkplus1perm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(jj, vec1i), kkplus1perm)
+    )
+    jjpluskpermperm = cast[M128i]([
+      simplex.perm[jjpluskkperm[0]],
+      simplex.perm[jjpluskkperm[1]],
+      simplex.perm[jjpluskkperm[2]],
+      simplex.perm[jjpluskkperm[3]]
+    ])
+    jjj1pluskkk1permperm = cast[M128i]([
+      simplex.perm[jjj1pluskkk1perm[0]],
+      simplex.perm[jjj1pluskkk1perm[1]],
+      simplex.perm[jjj1pluskkk1perm[2]],
+      simplex.perm[jjj1pluskkk1perm[3]]
+    ])
+    jjj2pluskkk2permperm = cast[M128i]([
+      simplex.perm[jjj2pluskkk2perm[0]],
+      simplex.perm[jjj2pluskkk2perm[1]],
+      simplex.perm[jjj2pluskkk2perm[2]],
+      simplex.perm[jjj2pluskkk2perm[3]],
+    ])
+    jjplus1pluskkplus1permperm = cast[M128i]([
+      simplex.perm[jjplus1pluskkplus1perm[0]],
+      simplex.perm[jjplus1pluskkplus1perm[1]],
+      simplex.perm[jjplus1pluskkplus1perm[2]],
+      simplex.perm[jjplus1pluskkplus1perm[3]]
+    ])
+    iiplusjjpluskpermperm = cast[array[4, int32]](
+      mm_add_epi32(ii, jjpluskpermperm)
+    )
+    iii1plusjjj1pluskkk1permperm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(ii, mm_cvtps_epi32(i1)), jjj1pluskkk1permperm)
+    )
+    iii2plusjjj2pluskkk2permperm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(ii, mm_cvtps_epi32(i2)), jjj2pluskkk2permperm)
+    )
+    iiplus1plusjjplus1pluskkplus1permperm = cast[array[4, int32]](
+      mm_add_epi32(mm_add_epi32(ii, vec1i), jjplus1pluskkplus1permperm)
+    )
     gx0 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[1] + simplex.perm[jji[1] + simplex.perm[kki[1]]]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[2] + simplex.perm[jji[2] + simplex.perm[kki[2]]]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
-      ]][0]
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[0]]][0],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[1]]][0],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[2]]][0],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[3]]][0]
     ])
     gy0 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[1] + simplex.perm[jji[1] + simplex.perm[kki[1]]]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[2] + simplex.perm[jji[2] + simplex.perm[kki[2]]]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
-      ]][1]
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[0]]][1],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[1]]][1],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[2]]][1],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[3]]][1]
     ])
     gz0 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + simplex.perm[jji[0] + simplex.perm[kki[0]]]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[1] + simplex.perm[jji[1] + simplex.perm[kki[1]]]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[2] + simplex.perm[jji[2] + simplex.perm[kki[2]]]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[3] + simplex.perm[jji[3] + simplex.perm[kki[3]]]
-      ]][2]
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[0]]][2],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[1]]][2],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[2]]][2],
+      grad3[simplex.permMod12[iiplusjjpluskpermperm[3]]][2]
     ])
     gx1 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + i1i[0] + simplex.perm[
-          jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
-        ]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[1] + i1i[1] + simplex.perm[
-          jji[1] + j1i[1] + simplex.perm[kki[1] + k1i[1]]
-        ]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[2] + i1i[2] + simplex.perm[
-          jji[2] + j1i[2] + simplex.perm[kki[2] + k1i[2]]
-        ]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[3] + i1i[3] + simplex.perm[
-          jji[3] + j1i[3] + simplex.perm[kki[3] + k1i[3]]
-        ]
-      ]][0]
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[0]]][0],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[1]]][0],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[2]]][0],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[3]]][0]
     ])
     gy1 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + i1i[0] + simplex.perm[
-          jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
-        ]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[1] + i1i[1] + simplex.perm[
-          jji[1] + j1i[1] + simplex.perm[kki[1] + k1i[1]]
-        ]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[2] + i1i[2] + simplex.perm[
-          jji[2] + j1i[2] + simplex.perm[kki[2] + k1i[2]]
-        ]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[3] + i1i[3] + simplex.perm[
-          jji[3] + j1i[3] + simplex.perm[kki[3] + k1i[3]]
-        ]
-      ]][1]
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[0]]][1],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[1]]][1],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[2]]][1],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[3]]][1]
     ])
     gz1 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + i1i[0] + simplex.perm[
-          jji[0] + j1i[0] + simplex.perm[kki[0] + k1i[0]]
-        ]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[1] + i1i[1] + simplex.perm[
-          jji[1] + j1i[1] + simplex.perm[kki[1] + k1i[1]]
-        ]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[2] + i1i[2] + simplex.perm[
-          jji[2] + j1i[2] + simplex.perm[kki[2] + k1i[2]]
-        ]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[3] + i1i[3] + simplex.perm[
-          jji[3] + j1i[3] + simplex.perm[kki[3] + k1i[3]]
-        ]
-      ]][2]
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[0]]][2],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[1]]][2],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[2]]][2],
+      grad3[simplex.permMod12[iii1plusjjj1pluskkk1permperm[3]]][2]
     ])
     gx2 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + i2i[0] + simplex.perm[
-          jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
-        ]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[1] + i2i[1] + simplex.perm[
-          jji[1] + j2i[1] + simplex.perm[kki[1] + k2i[1]]
-        ]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[2] + i2i[2] + simplex.perm[
-          jji[2] + j2i[2] + simplex.perm[kki[2] + k2i[2]]
-        ]
-      ]][0],
-      grad3[simplex.permMod12[
-        iii[3] + i2i[3] + simplex.perm[
-          jji[3] + j2i[3] + simplex.perm[kki[3] + k2i[3]]
-        ]
-      ]][0]
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[0]]][0],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[1]]][0],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[2]]][0],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[3]]][0]
     ])
     gy2 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + i2i[0] + simplex.perm[
-          jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
-        ]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[1] + i2i[1] + simplex.perm[
-          jji[1] + j2i[1] + simplex.perm[kki[1] + k2i[1]]
-        ]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[2] + i2i[2] + simplex.perm[
-          jji[2] + j2i[2] + simplex.perm[kki[2] + k2i[2]]
-        ]
-      ]][1],
-      grad3[simplex.permMod12[
-        iii[3] + i2i[3] + simplex.perm[
-          jji[3] + j2i[3] + simplex.perm[kki[3] + k2i[3]]
-        ]
-      ]][1]
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[0]]][1],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[1]]][1],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[2]]][1],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[3]]][1]
     ])
     gz2 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + i2i[0] + simplex.perm[
-          jji[0] + j2i[0] + simplex.perm[kki[0] + k2i[0]]
-        ]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[1] + i2i[1] + simplex.perm[
-          jji[1] + j2i[1] + simplex.perm[kki[1] + k2i[1]]
-        ]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[2] + i2i[2] + simplex.perm[
-          jji[2] + j2i[2] + simplex.perm[kki[2] + k2i[2]]
-        ]
-      ]][2],
-      grad3[simplex.permMod12[
-        iii[3] + i2i[3] + simplex.perm[
-          jji[3] + j2i[3] + simplex.perm[kki[3] + k2i[3]]
-        ]
-      ]][2]
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[0]]][2],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[1]]][2],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[2]]][2],
+      grad3[simplex.permMod12[iii2plusjjj2pluskkk2permperm[3]]][2]
     ])
     gx3 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
-      ]]][0],
-      grad3[simplex.permMod12[
-        iii[1] + 1 + simplex.perm[jji[1] + 1 + simplex.perm[kki[1] + 1]
-      ]]][0],
-      grad3[simplex.permMod12[
-        iii[2] + 1 + simplex.perm[jji[2] + 1 + simplex.perm[kki[2] + 1]
-      ]]][0],
-      grad3[simplex.permMod12[
-        iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
-      ]]][0]
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[0]]][0],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[1]]][0],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[2]]][0],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[3]]][0]
     ])
     gy3 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
-      ]]][1],
-      grad3[simplex.permMod12[
-        iii[1] + 1 + simplex.perm[jji[1] + 1 + simplex.perm[kki[1] + 1]
-      ]]][1],
-      grad3[simplex.permMod12[
-        iii[2] + 1 + simplex.perm[jji[2] + 1 + simplex.perm[kki[2] + 1]
-      ]]][1],
-      grad3[simplex.permMod12[
-        iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
-      ]]][1]
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[0]]][1],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[1]]][1],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[2]]][1],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[3]]][1]
     ])
     gz3 = cast[M128]([
-      grad3[simplex.permMod12[
-        iii[0] + 1 + simplex.perm[jji[0] + 1 + simplex.perm[kki[0] + 1]
-      ]]][2],
-      grad3[simplex.permMod12[
-        iii[1] + 1 + simplex.perm[jji[1] + 1 + simplex.perm[kki[1] + 1]
-      ]]][2],
-      grad3[simplex.permMod12[
-        iii[2] + 1 + simplex.perm[jji[2] + 1 + simplex.perm[kki[2] + 1]
-      ]]][2],
-      grad3[simplex.permMod12[
-        iii[3] + 1 + simplex.perm[jji[3] + 1 + simplex.perm[kki[3] + 1]
-      ]]][2]
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[0]]][2],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[1]]][2],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[2]]][2],
+      grad3[simplex.permMod12[iiplus1plusjjplus1pluskkplus1permperm[3]]][2]
     ])
 
   let

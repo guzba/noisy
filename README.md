@@ -35,8 +35,8 @@ Benchmarks can be run comparing methods for generating noise values. Check the p
 Method | Time
 --- | ---:
 Point by point using `value(x, y, z)` | 1.6066s
-Using `grid()` (SIMD accelerated, GCC default) | 1.1329s
-Using `grid()` (SIMD accelerated, `--passC:"-mavx"`) | 0.8382s
+Using `grid()` (SIMD accelerated, GCC default) | 1.0281s
+Using `grid()` (SIMD accelerated, `--passC:"-mavx"`) | 0.7476s
 
 ## Testing
 
@@ -55,8 +55,6 @@ import noisy
 Simplex = object
  octaves*: int
  amplitude*, frequency*, lacunarity*, gain*: float32
- perm: array[512, int32]
- permMod12: array[512, int32]
 ```
 
 ## **type** Grid
