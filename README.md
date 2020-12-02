@@ -55,6 +55,8 @@ import noisy
 Simplex = object
  octaves*: int
  amplitude*, frequency*, lacunarity*, gain*: float32
+ perm: array[512, int32]
+ permMod12: array[512, int32]
 ```
 
 ## **type** Grid
@@ -71,6 +73,20 @@ Grid = ref object
 
 ```nim
 NoisyError = object of ValueError
+```
+
+## **func** floor
+
+
+```nim
+func floor(a: M128): M128 {.inline.}
+```
+
+## **template** blend
+
+
+```nim
+template blend(a, b, mask: M128): M128
 ```
 
 ## **func** initSimplex
@@ -122,7 +138,7 @@ template value(simplex: Simplex; x, y, z: int): float32
 
 ## **func** grid
 
-Beginning at position start, generate a grid of 2D noise based on the Simplex parameters. The width and height of the grid is set by the dimens paramter. The start position is the bottom left of the grid at [0, 0].
+Beginning at position start, generate a grid of 2D noise based on the Simplex parameters. The width and height of the grid is set by the dimens paramter.
 
 ```nim
 func grid(simplex: Simplex; start: (float32, float32); dimens: (int, int)): Grid {.raises: [NoisyError].}
@@ -138,7 +154,7 @@ template grid(simplex: Simplex; start: (int, int); dimens: (int, int)): Grid
 
 ## **func** grid
 
-Beginning at position start, generate a grid of 3D noise based on the Simplex parameters. The width, depth, and height of the grid is set by the dimens paramter. The start position is the near bottom left of the grid at [0, 0, 0].
+Beginning at position start, generate a grid of 3D noise based on the Simplex parameters. The width, depth, and height of the grid is set by the dimens paramter.
 
 ```nim
 func grid(simplex: Simplex; start: (float32, float32, float32);
