@@ -82,11 +82,11 @@ NoisyError = object of ValueError
 func floor(a: M128): M128 {.inline.}
 ```
 
-## **template** blend
+## **func** blend
 
 
 ```nim
-template blend(a, b, mask: M128): M128
+func blend(a, b, mask: M128): M128 {.inline.}
 ```
 
 ## **func** initSimplex
@@ -101,7 +101,7 @@ func initSimplex(seed: int): Simplex
 Returns the noise value at (x, y) or (x, y, z).
 
 ```nim
-func `[]`(g: Grid; x, y: int; z = 0): float32
+func `[]`(g: Grid; x, y: int; z = 0): float32 {.inline.}
 ```
 
 ## **func** value
@@ -120,20 +120,20 @@ Generates the 3D noise value at (x, y, z) based on the Simplex parameters.
 func value(simplex: Simplex; x, y, z: float32): float32 {.raises: [NoisyError], tags: [].}
 ```
 
-## **template** value
+## **func** value
 
 Helper for working with ints.
 
 ```nim
-template value(simplex: Simplex; x, y: int): float32
+func value(simplex: Simplex; x, y: int): float32 {.inline, raises: [NoisyError], tags: [].}
 ```
 
-## **template** value
+## **func** value
 
 Helper for working with ints
 
 ```nim
-template value(simplex: Simplex; x, y, z: int): float32
+func value(simplex: Simplex; x, y, z: int): float32 {.inline, raises: [NoisyError].}
 ```
 
 ## **func** grid
@@ -144,12 +144,12 @@ Beginning at position start, generate a grid of 2D noise based on the Simplex pa
 func grid(simplex: Simplex; start: (float32, float32); dimens: (int, int)): Grid {.raises: [NoisyError].}
 ```
 
-## **template** grid
+## **func** grid
 
 Helper for working with ints.
 
 ```nim
-template grid(simplex: Simplex; start: (int, int); dimens: (int, int)): Grid
+func grid(simplex: Simplex; start: (int, int); dimens: (int, int)): Grid {. inline, raises: [NoisyError].}
 ```
 
 ## **func** grid
@@ -161,10 +161,10 @@ func grid(simplex: Simplex; start: (float32, float32, float32);
  dimens: (int, int, int)): Grid {.raises: [NoisyError].}
 ```
 
-## **template** grid
+## **func** grid
 
 Helper for working with ints.
 
 ```nim
-template grid(simplex: Simplex; start: (int, int, int); dimens: (int, int, int)): Grid
+func grid(simplex: Simplex; start: (int, int, int); dimens: (int, int, int)): Grid {. inline, raises: [NoisyError].}
 ```

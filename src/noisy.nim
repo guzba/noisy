@@ -57,9 +57,8 @@ func initSimplex*(seed: int): Simplex =
 func valueIndex(g: Grid, x, y, z: int): int {.inline.} =
   z + y * g.depth + x * g.height * g.depth
 
-func `[]`*(g: Grid, x, y: int, z = 0): float32 =
+func `[]`*(g: Grid, x, y: int, z = 0): float32 {.inline.} =
   ## Returns the noise value at (x, y) or (x, y, z).
-
   if x < 0 or x >= g.width:
     raise newException(IndexDefect, "Index x out of bounds")
   if y < 0 or y >= g.height:
@@ -68,7 +67,7 @@ func `[]`*(g: Grid, x, y: int, z = 0): float32 =
     raise newException(IndexDefect, "Index z out of bounds")
   g.values[g.valueIndex(x, y, z)]
 
-func `[]=`(g: var Grid, x, y, z: int, value: float32) =
+func `[]=`(g: var Grid, x, y, z: int, value: float32) {.inline.} =
   g.values[g.valueIndex(x, y, z)] = value
 
 func dot(g: array[3, float32], x, y: float32): float32 {.inline.} =
