@@ -1,5 +1,7 @@
 # Noisy
 
+![Github Actions](https://github.com/guzba/noisy/workflows/Github%20Actions/badge.svg)
+
 `nimble install noisy`
 
 Noisy is a SIMD-accelerated Nim implementation of Simplex (Perlin) noise. The goal of this library is to be easy to use, performant and dependency-free.
