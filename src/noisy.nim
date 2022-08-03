@@ -1,5 +1,35 @@
 import math, nimsimd/sse2, random
 
+func m128(a: float32): M128 {.inline.} = mm_set1_ps(a)
+
+func m128i(a: int32): M128i {.inline.} = mm_set1_epi32(a)
+
+func `and`(a, b: M128): M128 {.inline.} = mm_and_ps(a, b)
+
+func `and`(a, b: M128i): M128i {.inline.} = mm_and_si128(a, b)
+
+func `or`(a, b: M128): M128 {.inline.} = mm_or_ps(a, b)
+
+func `xor`(a, b: M128): M128 {.inline.} = mm_xor_ps(a, b)
+
+func `>`(a, b: M128): M128 {.inline.} = mm_cmpgt_ps(a, b)
+
+func `>=`(a, b: M128): M128 {.inline.} = mm_cmpge_ps(a, b)
+
+func `<`(a, b: M128): M128 {.inline.} = mm_cmplt_ps(a, b)
+
+func `+`(a, b: M128): M128 {.inline.} = mm_add_ps(a, b)
+
+func `+=`(a: var M128, b: M128) {.inline.} = a = a + b
+
+func `-`(a, b: M128): M128 {.inline.} = mm_sub_ps(a, b)
+
+func `*`(a, b: M128): M128 {.inline.} = mm_mul_ps(a, b)
+
+func `/`(a, b: M128): M128 {.inline.} = mm_div_ps(a, b)
+
+func `/=`(a: var M128, b: M128) {.inline.} = a = a / b
+
 const
   F2 = (0.5 * (sqrt(3.0) - 1)).float32
   G2 = ((3 - sqrt(3.0)) / 6).float32
@@ -736,12 +766,13 @@ when defined(release):
 when isMainModule:
   ## Draw an image to see what the noise looks like
 
-  import chroma, flippy
+  import pixie
 
   var s = initSimplex(1988)
   s.frequency = 0.1
-  let img = newImage(480, 480, 3)
-  let g = s.grid((0, 0), (480, 480))
+  let
+    image = newImage(480, 480)
+    g = s.grid((0, 0), (480, 480))
   for x in 0 ..< 480:
     for y in 0 ..< 480:
       # for z in 0 ..< 1:
@@ -749,6 +780,6 @@ when isMainModule:
         # v = s.value(x.float32, y.float32)#, z.float32)
         v = g[x, y] #, z]
         c = (((v + 1) / 2) * 255).uint8
-      img.putRgba(x, y, rgba(c, c, c, 255))
+      image[x, y] = rgba(c, c, c, 255)
 
-  img.save("examples/noise.png")
+  image.writeFile("examples/noise.png")
