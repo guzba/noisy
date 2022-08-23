@@ -54,7 +54,7 @@ type
     width*, height*, depth*: int
     values*: seq[float32]
 
-  NoisyError* = object of ValueError
+  NoisyError* = object of CatchableError
 
 when defined(release):
   {.push checks: off.}
